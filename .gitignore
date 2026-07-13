@@ -1,0 +1,19 @@
+# 虚拟环境
+venv/
+env/
+.venv/
+.env/
+
+# Python 缓存与编译
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# 环境变量与密钥
+.env
+.env.local
+.env.*.local
