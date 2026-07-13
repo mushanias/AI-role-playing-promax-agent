@@ -13,3 +13,4 @@ DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 
 # 储存配置
 STORAGE_PATH = os.getenv("STORAGE_PATH", "data/chat_history.json")
+PROFILE_PATH = os.getenv("PROFILE_PATH", "data/profile.json")
