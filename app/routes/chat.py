@@ -15,5 +15,5 @@ async def chat(
     chat_service: ChatService = Depends(get_chat_service),
 ) -> ChatResponse:
     """对话接口：接收用户消息，返回 AI 回复"""
-    reply = chat_service.send(request.message)
+    reply = await chat_service.send(request.message)
     return ChatResponse(reply=reply)

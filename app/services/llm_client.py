@@ -1,9 +1,9 @@
-"""LLM 客户端：封装调用 DeepSeek 的细节"""
+"""LLM 客户端：封装调用 DeepSeek 的细节（异步）"""
 
 import time
 import logging
 from typing import List, Dict
-from openai import OpenAI
+from openai import AsyncOpenAI
 from openai import AuthenticationError, APIConnectionError, APITimeoutError
 
 from app.exceptions import LLMAuthError, LLMNetworkError, LLMResponseError
@@ -12,16 +12,16 @@ logger = logging.getLogger(__name__)
 
 
 class LLMClient:
-    """LLM 客户端，封装 DeepSeek 调用"""
+    """LLM 客户端，封装 DeepSeek 调用（异步）"""
 
     def __init__(self, api_key: str, base_url: str, model: str):
-        """初始化 openai SDK 客户端"""
-        self.client = OpenAI(api_key=api_key, base_url=base_url)
+        """初始化 openai SDK 异步客户端"""
+        self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
         self.model = model
         logger.debug(f"LLM 客户端初始化完成，模型: {model}")
 
-    def chat(self, messages: List[Dict]) -> str:
-        """调用 LLM 获取回复
+    async def chat(self, messages: List[Dict]) -> str:
+        """调用 LLM 获取回复（异步）
         可能抛出:
             LLMAuthError: API Key 错误
             LLMNetworkError: 网络失败/超时
@@ -34,7 +34,7 @@ class LLMClient:
         start_time = time.time()
 
         try:
-            response = self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
             )

@@ -1,5 +1,6 @@
 """CLI 入口：组装依赖，运行对话循环"""
 
+import asyncio
 import logging
 
 from app.core.config import (
@@ -44,7 +45,8 @@ def main():
             break
 
         try:
-            reply = chat.send(user_input)
+            # CLI 是同步入口，用 asyncio.run 调用异步的 send()
+            reply = asyncio.run(chat.send(user_input))
             print(f"AI: {reply}")
             print()
         except BaseAppException as e:

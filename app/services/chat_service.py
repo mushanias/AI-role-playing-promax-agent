@@ -1,4 +1,4 @@
-"""对话服务：编排读历史→拼设定→调LLM→存消息的完整对话流程"""
+"""对话服务：编排读历史→拼设定→调LLM→存消息的完整对话流程（异步）"""
 
 import logging
 from datetime import datetime
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class ChatService:
-    """对话编排服务"""
+    """对话编排服务（异步）"""
 
     def __init__(
         self,
@@ -30,19 +30,19 @@ class ChatService:
         self.llm_client = llm_client
         self.profile_storage = profile_storage
 
-    def send(self, user_input: str) -> str:
-        """处理一轮对话"""
+    async def send(self, user_input: str) -> str:
+        """处理一轮对话（异步）"""
         logger.debug(f"开始处理用户输入：{user_input[:20]}...")
 
         # 1. 存用户消息
-        self.storage.save_message({
+        await self.storage.save_message({
             "role": "user",
             "content": user_input,
             "timestamp": datetime.now().isoformat()
         })
 
         # 2. 读全部历史
-        all_messages = self.storage.load_messages()
+        all_messages = await self.storage.load_messages()
 
         # 3. 剥离 timestamp，组装发给 LLM 的消息列表
         llm_messages = [
@@ -51,7 +51,7 @@ class ChatService:
         ]
 
         # 4. 读设定，拼成 system message，插到最前
-        settings = self.profile_storage.load_profile()
+        settings = await self.profile_storage.load_profile()
         if settings:
             system_content = "\n\n".join(
                 f"【{key}】\n{value}" for key, value in settings.items()
@@ -62,10 +62,10 @@ class ChatService:
             logger.debug("无设定，裸对话")
 
         # 5. 调 LLM
-        reply = self.llm_client.chat(llm_messages)
+        reply = await self.llm_client.chat(llm_messages)
 
         # 6. 存助手回复
-        self.storage.save_message({
+        await self.storage.save_message({
             "role": "assistant",
             "content": reply,
             "timestamp": datetime.now().isoformat()

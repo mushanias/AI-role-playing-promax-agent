@@ -1,4 +1,4 @@
-"""设定路由：CRUD"""
+"""设定路由：CRUD（异步）"""
 
 from fastapi import APIRouter, Depends, Query
 
@@ -18,7 +18,7 @@ async def get_profile(
     storage: ProfileStorage = Depends(get_profile_storage),
 ) -> ProfileResponse:
     """获取全部设定"""
-    settings = storage.load_profile()
+    settings = await storage.load_profile()
     return ProfileResponse(settings=settings)
 
 
@@ -28,7 +28,7 @@ async def update_profile(
     storage: ProfileStorage = Depends(get_profile_storage),
 ) -> ProfileResponse:
     """全量更新设定（覆盖）"""
-    storage.save_profile(request.settings)
+    await storage.save_profile(request.settings)
     return ProfileResponse(settings=request.settings)
 
 
@@ -38,8 +38,8 @@ async def set_setting(
     storage: ProfileStorage = Depends(get_profile_storage),
 ) -> ProfileResponse:
     """新增或修改单个设定项"""
-    storage.set_setting(request.key, request.value)
-    settings = storage.load_profile()
+    await storage.set_setting(request.key, request.value)
+    settings = await storage.load_profile()
     return ProfileResponse(settings=settings)
 
 
@@ -49,6 +49,6 @@ async def delete_setting(
     storage: ProfileStorage = Depends(get_profile_storage),
 ) -> ProfileResponse:
     """删除单个设定项"""
-    storage.delete_setting(key)
-    settings = storage.load_profile()
+    await storage.delete_setting(key)
+    settings = await storage.load_profile()
     return ProfileResponse(settings=settings)
