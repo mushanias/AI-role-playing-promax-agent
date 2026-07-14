@@ -10,11 +10,16 @@ from app.core.config import (
 from app.core.logger import setup_logging
 from app.storage.json_storage import JsonStorage
 from app.storage.profile_storage import ProfileStorage
+from app.storage.context_state_storage import ContextStateStorage
 from app.services.llm_client import LLMClient
+from app.services.token_counter import TokenCounter
+from app.services.context_builder import ContextBuilder
 from app.services.chat_service import ChatService
 from app.exceptions import BaseAppException
 
 logger = logging.getLogger(__name__)
+
+CONTEXT_STATE_DIR = "data/context_states"
 
 
 def main():
@@ -22,9 +27,16 @@ def main():
     logger.info("程序启动")
 
     storage = JsonStorage(STORAGE_PATH)
-    profile_storage = ProfileStorage(PROFILE_PATH)
     llm_client = LLMClient(DEEPSEEK_API_KEY, DEEPSEEK_BASE_URL, DEEPSEEK_MODEL)
-    chat = ChatService(storage, llm_client, profile_storage)
+    context_builder = ContextBuilder(
+        token_counter=TokenCounter(DEEPSEEK_MODEL),
+        message_storage=storage,
+        profile_storage=ProfileStorage(PROFILE_PATH),
+        state_storage=ContextStateStorage(CONTEXT_STATE_DIR),
+        llm_client=llm_client,
+        model=DEEPSEEK_MODEL,
+    )
+    chat = ChatService(storage, llm_client, context_builder)
     logger.debug("依赖组装完成")
 
     print("=" * 40)
