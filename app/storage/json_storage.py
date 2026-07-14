@@ -33,19 +33,20 @@ class JsonStorage(BaseStorage):
         logger.debug(f"储存初始化完成：{file_path}")
 
     async def save_message(self, message: Dict) -> None:
-        async def _save():
-            messages = await self.load_messages()
-            messages.append(message)
+        # 先在事件循环里读取现有消息（await load_messages 是正确的异步调用）
+        messages = await self.load_messages()
+        messages.append(message)
+
+        # 写入部分用同步函数包进 to_thread（不能用 async def，否则不会执行）
+        def _write():
             try:
                 with open(self.file_path, "w", encoding="utf-8") as f:
                     json.dump(messages, f, ensure_ascii=False, indent=2)
-            except (json.JSONDecodeError, KeyError):
-                raise StorageCorruptionError("储存文件损坏，无法追加消息") from None
             except OSError as e:
                 raise StorageIOError(f"写入储存文件失败: {e}") from None
             logger.debug(f"存入消息：role={message['role']}，当前共 {len(messages)} 条")
 
-        await asyncio.to_thread(_save)
+        await asyncio.to_thread(_write)
 
     async def load_messages(self) -> List[Dict]:
         def _load():
