@@ -10,6 +10,7 @@ class ContextBuildResult:
     """一次上下文组装的结果。"""
 
     messages: List[Dict[str, str]]
+    recent_messages: List[Dict[str, str]]
     estimated_tokens: int
     needs_compression: bool
 
@@ -61,6 +62,7 @@ class ContextBuilder:
             needs_compression=(
                 estimated_tokens > self.input_token_budget
             ),
+            recent_messages=recent_messages,
         )
 
     def _get_recent_messages(

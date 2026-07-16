@@ -50,3 +50,10 @@ RECENT_TURNS_KEEP = int(
 
 if RECENT_TURNS_KEEP < 1:
     raise ValueError("RECENT_TURNS_KEEP 必须大于 0")
+
+SUMMARY_TOKEN_BUDGET = int(
+    os.getenv("SUMMARY_TOKEN_BUDGET", "1000")
+)
+
+if SUMMARY_TOKEN_BUDGET <= 0:
+    raise ValueError("SUMMARY_TOKEN_BUDGET 必须大于 0")
