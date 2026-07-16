@@ -57,3 +57,10 @@ SUMMARY_TOKEN_BUDGET = int(
 
 if SUMMARY_TOKEN_BUDGET <= 0:
     raise ValueError("SUMMARY_TOKEN_BUDGET 必须大于 0")
+
+MAX_COMPRESSION_PASSES = int(
+    os.getenv("MAX_COMPRESSION_PASSES", "3")
+)
+
+if MAX_COMPRESSION_PASSES < 1:
+    raise ValueError("MAX_COMPRESSION_PASSES 必须大于 0")
