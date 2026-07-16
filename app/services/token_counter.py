@@ -1,5 +1,5 @@
 # app/services/token_counter.py
-#token计数器
+#token计数器，不是精确的所以要保存余量
 from collections.abc import Sequence
 from typing import Mapping
 

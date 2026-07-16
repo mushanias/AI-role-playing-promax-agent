@@ -14,3 +14,26 @@ DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 # 储存配置
 STORAGE_PATH = os.getenv("STORAGE_PATH", "data/chat_history.json")
 PROFILE_PATH = os.getenv("PROFILE_PATH", "data/profile.json")
+
+# Context 预算配置
+# 这是应用主动设定的单轮总预算，不等于模型真实上下文窗口
+APP_CONTEXT_BUDGET = int(os.getenv("APP_CONTEXT_BUDGET", "8000"))
+
+# 为模型回复预留的 token 数
+OUTPUT_TOKEN_RESERVE = int(os.getenv("OUTPUT_TOKEN_RESERVE", "2000"))
+
+# 吸收 token 预估误差的安全余量
+CONTEXT_SAFETY_MARGIN = int(os.getenv("CONTEXT_SAFETY_MARGIN", "200"))
+
+# Context 本轮实际可发送给模型的输入预算
+INPUT_TOKEN_BUDGET = (
+    APP_CONTEXT_BUDGET
+    - OUTPUT_TOKEN_RESERVE
+    - CONTEXT_SAFETY_MARGIN
+)
+
+if INPUT_TOKEN_BUDGET <= 0:
+    raise ValueError(
+        "APP_CONTEXT_BUDGET 必须大于 "
+        "OUTPUT_TOKEN_RESERVE + CONTEXT_SAFETY_MARGIN"
+    )
