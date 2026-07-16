@@ -3,6 +3,7 @@
 import logging
 from datetime import datetime
 from typing import List, Dict
+from uuid import uuid4
 
 from app.storage.base import BaseStorage
 from app.storage.profile_storage import ProfileStorage
@@ -73,3 +74,11 @@ class ChatService:
 
         logger.debug("一轮对话处理完成")
         return reply
+def _new_message(role: str, content: str) -> Dict[str, str]:
+    """创建一条带稳定身份标识的消息。"""
+    return {
+        "message_id": str(uuid4()),
+        "role": role,
+        "content": content,
+        "timestamp": datetime.now().isoformat(),
+    }
