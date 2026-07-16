@@ -33,9 +33,10 @@ class JsonStorage(BaseStorage):
         logger.debug(f"储存初始化完成：{file_path}")
 
     async def save_message(self, message: Dict) -> None:
-        async def _save():
-            messages = await self.load_messages()
-            messages.append(message)
+        messages = await self.load_messages()
+        messages.append(message)
+
+        def _save():
             try:
                 with open(self.file_path, "w", encoding="utf-8") as f:
                     json.dump(messages, f, ensure_ascii=False, indent=2)
