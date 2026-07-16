@@ -43,3 +43,10 @@ CONTEXT_STATE_PATH = os.getenv(
     "CONTEXT_STATE_PATH",
     "data/context_state.json",
 )
+
+RECENT_TURNS_KEEP = int(
+    os.getenv("RECENT_TURNS_KEEP", "6")
+)
+
+if RECENT_TURNS_KEEP < 1:
+    raise ValueError("RECENT_TURNS_KEEP 必须大于 0")
