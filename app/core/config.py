@@ -16,6 +16,7 @@ STORAGE_PATH = os.getenv("STORAGE_PATH", "data/chat_history.json")
 PROFILE_PATH = os.getenv("PROFILE_PATH", "data/profile.json")
 
 # Context 预算配置
+
 # 这是应用主动设定的单轮总预算，不等于模型真实上下文窗口
 APP_CONTEXT_BUDGET = int(os.getenv("APP_CONTEXT_BUDGET", "8000"))
 
@@ -37,3 +38,8 @@ if INPUT_TOKEN_BUDGET <= 0:
         "APP_CONTEXT_BUDGET 必须大于 "
         "OUTPUT_TOKEN_RESERVE + CONTEXT_SAFETY_MARGIN"
     )
+
+CONTEXT_STATE_PATH = os.getenv(
+    "CONTEXT_STATE_PATH",
+    "data/context_state.json",
+)
