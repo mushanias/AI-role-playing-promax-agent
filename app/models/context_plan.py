@@ -28,3 +28,22 @@ class ContextCandidate:
     low_watermark: int
     recent_raw_token_target: int
     needs_compression: bool
+
+
+@dataclass(frozen=True)
+class ManagedContext:
+    """ContextManager 最终交给聊天编排层的结果。"""
+
+    candidate: ContextCandidate
+    warnings: Tuple[str, ...]
+    compression_passes: int
+
+    @property
+    def messages(self) -> Tuple[Dict[str, str], ...]:
+        """返回可直接发送给主对话 LLM 的 messages。"""
+        return self.candidate.messages
+
+    @property
+    def quality_degraded(self) -> bool:
+        """表示结果仍超过质量高水位或执行期间产生了警告。"""
+        return self.candidate.needs_compression or bool(self.warnings)

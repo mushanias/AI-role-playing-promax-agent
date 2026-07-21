@@ -5,7 +5,11 @@ from app.models.conversation import (
     Turn,
     TurnStatus,
 )
-from app.models.context_plan import ContextCandidate, ContextPlan
+from app.models.context_plan import (
+    ContextCandidate,
+    ContextPlan,
+    ManagedContext,
+)
 from app.models.compression_plan import (
     VersionedCompressionOutcome,
     VersionedCompressionPlan,
@@ -19,6 +23,7 @@ __all__ = [
     "TurnStatus",
     "ContextCandidate",
     "ContextPlan",
+    "ManagedContext",
     "VersionedCompressionOutcome",
     "VersionedCompressionPlan",
 ]

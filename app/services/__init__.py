@@ -4,6 +4,9 @@ from app.services.versioned_context_compression_service import (
     CompressionBatchPlanner,
     VersionedContextCompressionService,
 )
+from app.services.versioned_context_manager import (
+    VersionedContextManager,
+)
 
 __all__ = [
     "BranchService",
@@ -11,4 +14,5 @@ __all__ = [
     "ContextPlanner",
     "TurnVariant",
     "VersionedContextCompressionService",
+    "VersionedContextManager",
 ]
