@@ -188,6 +188,31 @@ class ConversationModelTests(unittest.TestCase):
                 branches={"branch-main": branch},
             )
 
+    def test_turn_parent_must_be_completed(self) -> None:
+        pending_parent = Turn(
+            turn_id="turn-pending",
+            user_content="尚未完成",
+            status=TurnStatus.PENDING,
+            created_at=NOW,
+        )
+        child = completed_turn("turn-child", "turn-pending")
+        branch = Branch(
+            branch_id="branch-main",
+            head_turn_id="turn-child",
+            created_at=NOW,
+        )
+
+        with self.assertRaises(ValidationError):
+            Conversation(
+                conversation_id="conversation-1",
+                active_branch_id="branch-main",
+                turns={
+                    "turn-pending": pending_parent,
+                    "turn-child": child,
+                },
+                branches={"branch-main": branch},
+            )
+
     def test_child_summary_must_extend_parent_history(self) -> None:
         turn_1 = completed_turn("turn-1")
         turn_2 = completed_turn("turn-2", "turn-1")

@@ -146,6 +146,12 @@ class Conversation(BaseModel):
                 raise ValueError(
                     f"Turn {turn.turn_id} 指向不存在的父轮次"
                 )
+            if (
+                turn.parent_turn_id is not None
+                and self.turns[turn.parent_turn_id].status
+                != TurnStatus.COMPLETED
+            ):
+                raise ValueError("Turn 的父轮次必须是 completed Turn")
 
         self._reject_cycles(
             node_ids=set(self.turns),
