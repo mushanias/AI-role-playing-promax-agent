@@ -11,49 +11,15 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
 
-# 储存配置
-STORAGE_PATH = os.getenv("STORAGE_PATH", "data/chat_history.json")
+# 存储配置
 PROFILE_PATH = os.getenv("PROFILE_PATH", "data/profile.json")
 CONVERSATIONS_PATH = os.getenv(
     "CONVERSATIONS_PATH",
     "data/conversations",
 )
 
-# Context 预算配置
-
-# 这是应用主动设定的单轮总预算，不等于模型真实上下文窗口
-APP_CONTEXT_BUDGET = int(os.getenv("APP_CONTEXT_BUDGET", "8000"))
-
-# 为模型回复预留的 token 数
-OUTPUT_TOKEN_RESERVE = int(os.getenv("OUTPUT_TOKEN_RESERVE", "2000"))
-
-# 吸收 token 预估误差的安全余量
+# Context 预算配置：质量高水位 40k，压缩软目标 25k。
 CONTEXT_SAFETY_MARGIN = int(os.getenv("CONTEXT_SAFETY_MARGIN", "200"))
-
-# Context 本轮实际可发送给模型的输入预算
-INPUT_TOKEN_BUDGET = (
-    APP_CONTEXT_BUDGET
-    - OUTPUT_TOKEN_RESERVE
-    - CONTEXT_SAFETY_MARGIN
-)
-
-if INPUT_TOKEN_BUDGET <= 0:
-    raise ValueError(
-        "APP_CONTEXT_BUDGET 必须大于 "
-        "OUTPUT_TOKEN_RESERVE + CONTEXT_SAFETY_MARGIN"
-    )
-
-CONTEXT_STATE_PATH = os.getenv(
-    "CONTEXT_STATE_PATH",
-    "data/context_state.json",
-)
-
-RECENT_TURNS_KEEP = int(
-    os.getenv("RECENT_TURNS_KEEP", "6")
-)
-
-if RECENT_TURNS_KEEP < 1:
-    raise ValueError("RECENT_TURNS_KEEP 必须大于 0")
 
 SUMMARY_TOKEN_BUDGET = int(
     os.getenv("SUMMARY_TOKEN_BUDGET", "1000")
@@ -69,7 +35,6 @@ MAX_COMPRESSION_PASSES = int(
 if MAX_COMPRESSION_PASSES < 1:
     raise ValueError("MAX_COMPRESSION_PASSES 必须大于 0")
 
-# 新分支 Context 的质量水位；完成最终接线前不影响旧聊天流程。
 CONTEXT_HIGH_WATERMARK = int(
     os.getenv("CONTEXT_HIGH_WATERMARK", "40000")
 )
@@ -86,3 +51,5 @@ if CONTEXT_HIGH_WATERMARK <= CONTEXT_LOW_WATERMARK:
     raise ValueError("CONTEXT_HIGH_WATERMARK 必须大于低水位")
 if not 0 < RECENT_RAW_TOKEN_TARGET < CONTEXT_LOW_WATERMARK:
     raise ValueError("RECENT_RAW_TOKEN_TARGET 必须处于 0 和低水位之间")
+if CONTEXT_SAFETY_MARGIN < 0:
+    raise ValueError("CONTEXT_SAFETY_MARGIN 不能小于 0")

@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List
+from typing import Dict, List, Protocol
 
 from app.exceptions import LLMResponseError
 from app.prompts.loader import load_roleplay_compression_prompt
@@ -7,13 +7,19 @@ from app.services.compressor import (
     CompressionRequest,
     CompressionResult,
 )
-from app.services.llm_client import LLMClient
+
+
+class CompressionLLMClient(Protocol):
+    """压缩器实际需要的最小 LLM 接口。"""
+
+    async def chat(self, messages: List[Dict[str, str]]) -> str:
+        ...
 
 
 class LLMCompressor:
     """使用 LLM 执行角色扮演历史压缩。"""
 
-    def __init__(self, llm_client: LLMClient) -> None:
+    def __init__(self, llm_client: CompressionLLMClient) -> None:
         self.llm_client = llm_client
         self.system_prompt = load_roleplay_compression_prompt()
 

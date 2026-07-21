@@ -138,7 +138,6 @@ def build_services(
 ):
     builder = ContextBuilder(
         token_counter=FakeTokenCounter(),
-        input_token_budget=high_watermark,
     )
     context_planner = ContextPlanner(
         context_builder=builder,

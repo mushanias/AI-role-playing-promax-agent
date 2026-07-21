@@ -4,7 +4,14 @@ import time
 import logging
 from typing import List, Dict
 from openai import AsyncOpenAI
-from openai import AuthenticationError, APIConnectionError, APITimeoutError
+from openai import (
+    APIConnectionError,
+    APIStatusError,
+    APITimeoutError,
+    AuthenticationError,
+    BadRequestError,
+    RateLimitError,
+)
 
 from app.exceptions import LLMAuthError, LLMNetworkError, LLMResponseError
 
@@ -44,8 +51,20 @@ class LLMClient:
         except (APIConnectionError, APITimeoutError):
             # 网络连接或超时错误
             raise LLMNetworkError("网络连接失败或超时，请检查网络") from None
+        except RateLimitError:
+            raise LLMNetworkError("LLM 服务繁忙或请求频率过高，请稍后重试") from None
+        except BadRequestError as error:
+            raise LLMResponseError(
+                f"LLM 拒绝了本次请求：{error.message}"
+            ) from None
+        except APIStatusError as error:
+            raise LLMResponseError(
+                f"LLM 服务返回异常状态：{error.status_code}"
+            ) from None
 
         elapsed = time.time() - start_time
+        if not response.choices:
+            raise LLMResponseError("LLM 返回结果中没有候选回复")
         reply = response.choices[0].message.content
 
         # 检查回复是否为空

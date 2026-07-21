@@ -14,7 +14,6 @@ from app.exceptions.storage_errors import (
     StorageNotFoundError,
     StorageConflictError,
 )
-from app.exceptions.context_errors import ContextBudgetError
 from app.exceptions.branch_errors import (
     BranchException,
     BranchNotFoundError,

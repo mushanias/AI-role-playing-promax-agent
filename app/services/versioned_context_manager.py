@@ -3,7 +3,11 @@
 from typing import Dict, Optional, Protocol
 
 from app.models.compression_plan import VersionedCompressionOutcome
-from app.models.context_plan import ContextCandidate, ManagedContext
+from app.models.context_plan import (
+    ContextCandidate,
+    ContextPlan,
+    ManagedContext,
+)
 from app.services.context_planner import ContextPlanner
 from app.storage.conversation_repository import ConversationRepository
 from app.storage.profile_storage import ProfileStorage
@@ -81,10 +85,22 @@ class VersionedContextManager:
                 self._build_limit_warning(compression_passes),
             )
 
+        degraded_messages = None
+        degraded_estimated_tokens = None
+        if candidate.needs_compression:
+            (
+                degraded_messages,
+                degraded_estimated_tokens,
+                degradation_warning,
+            ) = self._build_degraded_payload(candidate, profile)
+            self._append_warning(warnings, degradation_warning)
+
         return ManagedContext(
             candidate=candidate,
             warnings=tuple(warnings),
             compression_passes=compression_passes,
+            degraded_messages=degraded_messages,
+            degraded_estimated_tokens=degraded_estimated_tokens,
         )
 
     async def _build_candidate(
@@ -110,6 +126,180 @@ class VersionedContextManager:
             "上下文仍超过质量高水位；"
             "本轮将继续使用降级 Context。"
         )
+
+    def _build_degraded_payload(
+        self,
+        candidate: ContextCandidate,
+        profile: Dict[str, str],
+    ) -> tuple[tuple[Dict[str, str], ...], int, str]:
+        """只缩减本次发送副本，不修改原始 Turn、摘要或全局设定。"""
+        plan = candidate.plan
+        raw_turns = plan.raw_turns
+
+        for drop_count in range(1, len(raw_turns) + 1):
+            degraded = self.context_planner.context_builder.build_from_plan(
+                profile=profile,
+                plan=ContextPlan(
+                    conversation_id=plan.conversation_id,
+                    branch_id=plan.branch_id,
+                    summary=plan.summary,
+                    raw_turns=raw_turns[drop_count:],
+                    pending_turn=plan.pending_turn,
+                ),
+            )
+            if degraded.estimated_tokens <= candidate.high_watermark:
+                return (
+                    degraded.messages,
+                    degraded.estimated_tokens,
+                    "本轮发送载荷已省略较早原文；JSON 中的完整历史未修改。",
+                )
+
+        without_summary = (
+            self.context_planner.context_builder.build_from_plan(
+                profile=profile,
+                plan=ContextPlan(
+                    conversation_id=plan.conversation_id,
+                    branch_id=plan.branch_id,
+                    summary=None,
+                    raw_turns=(),
+                    pending_turn=plan.pending_turn,
+                ),
+            )
+        )
+        if without_summary.estimated_tokens <= candidate.high_watermark:
+            return (
+                without_summary.messages,
+                without_summary.estimated_tokens,
+                "本轮发送载荷已省略历史摘要与较早原文；持久化历史未修改。",
+            )
+
+        hard_limited = self._hard_limit_payload(
+            messages=without_summary.messages,
+            token_limit=candidate.high_watermark,
+        )
+        return (
+            hard_limited[0],
+            hard_limited[1],
+            "当前输入或全局设定极端过长，本轮发送副本已截短；原始数据仍完整保留。",
+        )
+
+    def _hard_limit_payload(
+        self,
+        messages: tuple[Dict[str, str], ...],
+        token_limit: int,
+    ) -> tuple[tuple[Dict[str, str], ...], int]:
+        """优先保留当前用户输入，再用剩余空间保留系统设定。"""
+        current_user = next(
+            (
+                message
+                for message in reversed(messages)
+                if message["role"] == "user"
+            ),
+            None,
+        )
+        system_message = next(
+            (
+                message
+                for message in messages
+                if message["role"] == "system"
+            ),
+            None,
+        )
+        if current_user is None:
+            if system_message is None:
+                return (), 0
+            limited_system = self._truncate_message_to_fit(
+                message=system_message,
+                companion_messages=(),
+                token_limit=token_limit,
+            )
+            result = (limited_system,)
+            return result, self._count_messages(result)
+
+        user_only = (dict(current_user),)
+        user_tokens = self._count_messages(user_only)
+
+        if user_tokens > token_limit:
+            limited_user = self._truncate_message_to_fit(
+                message=current_user,
+                companion_messages=(),
+                token_limit=token_limit,
+            )
+            result = (limited_user,)
+            return result, self._count_messages(result)
+
+        if system_message is None:
+            return user_only, user_tokens
+
+        limited_system = self._truncate_message_to_fit(
+            message=system_message,
+            companion_messages=user_only,
+            token_limit=token_limit,
+        )
+        result = (limited_system, *user_only)
+        estimated_tokens = self._count_messages(result)
+        if estimated_tokens > token_limit:
+            return user_only, user_tokens
+        return result, estimated_tokens
+
+    def _truncate_message_to_fit(
+        self,
+        message: Dict[str, str],
+        companion_messages: tuple[Dict[str, str], ...],
+        token_limit: int,
+    ) -> Dict[str, str]:
+        marker = "\n\n【内容因长度限制已截短】\n\n"
+        content = message["content"]
+        low = 0
+        high = len(content)
+        best = ""
+
+        while low <= high:
+            keep = (low + high) // 2
+            candidate_content = self._keep_content_edges(
+                content,
+                keep,
+                marker,
+            )
+            candidate_message = {
+                "role": message["role"],
+                "content": candidate_content,
+            }
+            candidate_messages = (
+                candidate_message,
+                *companion_messages,
+            )
+            if self._count_messages(candidate_messages) <= token_limit:
+                best = candidate_content
+                low = keep + 1
+            else:
+                high = keep - 1
+
+        return {"role": message["role"], "content": best}
+
+    def _count_messages(
+        self,
+        messages: tuple[Dict[str, str], ...],
+    ) -> int:
+        return self.context_planner.context_builder.token_counter.count_messages(
+            messages
+        )
+
+    @staticmethod
+    def _keep_content_edges(
+        content: str,
+        keep: int,
+        marker: str,
+    ) -> str:
+        if keep >= len(content):
+            return content
+        if keep <= 0:
+            return marker.strip()
+
+        prefix_size = (keep + 1) // 2
+        suffix_size = keep // 2
+        suffix = content[-suffix_size:] if suffix_size else ""
+        return f"{content[:prefix_size]}{marker}{suffix}"
 
     @staticmethod
     def _append_warning(

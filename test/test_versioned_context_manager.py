@@ -94,7 +94,7 @@ def build_candidate(
     branch_id: str,
     needs_compression: bool,
 ) -> ContextCandidate:
-    builder = ContextBuilder(FakeTokenCounter(), input_token_budget=100)
+    builder = ContextBuilder(FakeTokenCounter())
     planner = ContextPlanner(
         context_builder=builder,
         high_watermark=30,
@@ -131,7 +131,6 @@ class VersionedContextManagerTests(unittest.IsolatedAsyncioTestCase):
         await self.profile_storage.save_profile({"世界观": "测试世界"})
         self.builder = ContextBuilder(
             FakeTokenCounter(),
-            input_token_budget=100,
         )
 
     async def asyncTearDown(self) -> None:
@@ -247,6 +246,11 @@ class VersionedContextManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(
             any("降级 Context" in warning for warning in result.warnings)
         )
+        self.assertIsNotNone(result.degraded_messages)
+        self.assertLessEqual(result.estimated_tokens, 30)
+
+        loaded = await self.repository.load("conversation-1")
+        self.assertEqual(set(loaded.turns), set(self.conversation.turns))
 
     async def test_maximum_passes_returns_degraded_context(self) -> None:
         high_candidate = build_candidate(

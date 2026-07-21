@@ -1,6 +1,5 @@
-"""数据模型统一导出"""
+"""HTTP Schema 统一导出。"""
 
-from app.schemas.chat import ChatRequest, ChatResponse
 from app.schemas.profile import (
     ProfileResponse,
     ProfileUpdateRequest,
@@ -20,8 +19,6 @@ from app.schemas.conversation import (
 
 __all__ = [
     "BranchActivationResponse",
-    "ChatRequest",
-    "ChatResponse",
     "ChatTurnResponse",
     "ConversationCreateResponse",
     "ConversationHistoryResponse",

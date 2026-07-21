@@ -33,7 +33,7 @@ class InspectingContextManager:
         self.repository = repository
         self.warnings = tuple(warnings)
         self.calls = []
-        builder = ContextBuilder(FakeTokenCounter(), 1000)
+        builder = ContextBuilder(FakeTokenCounter())
         self.planner = ContextPlanner(
             context_builder=builder,
             high_watermark=800,

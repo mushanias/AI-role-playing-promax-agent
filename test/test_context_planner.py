@@ -106,7 +106,6 @@ def branched_conversation(
 def planner(high_watermark: int = 1000) -> ContextPlanner:
     builder = ContextBuilder(
         token_counter=FakeTokenCounter(),
-        input_token_budget=high_watermark,
     )
     return ContextPlanner(
         context_builder=builder,
@@ -218,7 +217,6 @@ class ContextPlannerTests(unittest.TestCase):
     def test_watermark_configuration_requires_room_for_raw_tail(self) -> None:
         builder = ContextBuilder(
             token_counter=FakeTokenCounter(),
-            input_token_budget=100,
         )
 
         with self.assertRaises(ValueError):

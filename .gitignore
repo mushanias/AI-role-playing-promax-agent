@@ -20,3 +20,6 @@ build/
 
 # IDE 本地项目配置
 .idea/
+
+# 运行日志
+logs/

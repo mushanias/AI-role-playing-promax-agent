@@ -37,13 +37,28 @@ class ManagedContext:
     candidate: ContextCandidate
     warnings: Tuple[str, ...]
     compression_passes: int
+    degraded_messages: Optional[Tuple[Dict[str, str], ...]] = None
+    degraded_estimated_tokens: Optional[int] = None
 
     @property
     def messages(self) -> Tuple[Dict[str, str], ...]:
         """返回可直接发送给主对话 LLM 的 messages。"""
+        if self.degraded_messages is not None:
+            return self.degraded_messages
         return self.candidate.messages
+
+    @property
+    def estimated_tokens(self) -> int:
+        """返回实际发送载荷的 Token 估算。"""
+        if self.degraded_estimated_tokens is not None:
+            return self.degraded_estimated_tokens
+        return self.candidate.estimated_tokens
 
     @property
     def quality_degraded(self) -> bool:
         """表示结果仍超过质量高水位或执行期间产生了警告。"""
-        return self.candidate.needs_compression or bool(self.warnings)
+        return (
+            self.degraded_messages is not None
+            or self.candidate.needs_compression
+            or bool(self.warnings)
+        )

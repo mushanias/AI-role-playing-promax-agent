@@ -1,8 +1,7 @@
-from dataclasses import dataclass
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Dict, List, Mapping, Protocol
 
-from app.models.context_state import ContextState
 from app.models.context_plan import ContextPlan
 
 
@@ -16,16 +15,6 @@ class MessageTokenCounter(Protocol):
         ...
 
 
-@dataclass
-class ContextBuildResult:
-    """一次上下文组装的结果。"""
-
-    messages: List[Dict[str, str]]
-    recent_messages: List[Dict[str, str]]
-    estimated_tokens: int
-    needs_compression: bool
-
-
 @dataclass(frozen=True)
 class PlannedContextBuildResult:
     """根据新 ContextPlan 生成的实际消息和 Token 估算。"""
@@ -35,54 +24,13 @@ class PlannedContextBuildResult:
 
 
 class ContextBuilder:
-    """根据历史、设定和状态组装本轮候选上下文。"""
+    """根据全局设定和 ContextPlan 组装本轮候选消息。"""
 
     def __init__(
         self,
         token_counter: MessageTokenCounter,
-        input_token_budget: int,
     ) -> None:
-        if input_token_budget <= 0:
-            raise ValueError("输入 token 预算必须大于 0")
-
         self.token_counter = token_counter
-        self.input_token_budget = input_token_budget
-
-    def build(
-        self,
-        profile: Dict[str, str],
-        history: List[Dict[str, str]],
-        state: ContextState,
-    ) -> ContextBuildResult:
-        recent_messages = self._get_recent_messages(history, state)
-        system_content = self._build_system_content(profile, state)
-
-        messages = []
-
-        if system_content:
-            messages.append({
-                "role": "system",
-                "content": system_content,
-            })
-
-        messages.extend(
-            {
-                "role": message["role"],
-                "content": message["content"],
-            }
-            for message in recent_messages
-        )
-
-        estimated_tokens = self.token_counter.count_messages(messages)
-
-        return ContextBuildResult(
-            messages=messages,
-            estimated_tokens=estimated_tokens,
-            needs_compression=(
-                estimated_tokens > self.input_token_budget
-            ),
-            recent_messages=recent_messages,
-        )
 
     def build_from_plan(
         self,
@@ -129,36 +77,6 @@ class ContextBuilder:
             estimated_tokens=self.token_counter.count_messages(
                 frozen_messages
             ),
-        )
-
-    def _get_recent_messages(
-        self,
-        history: List[Dict[str, str]],
-        state: ContextState,
-    ) -> List[Dict[str, str]]:
-        """返回尚未被摘要覆盖的原始消息。"""
-        pointer = state.compressed_until_message_id
-
-        if pointer is None:
-            return history
-
-        for index, message in enumerate(history):
-            if message["message_id"] == pointer:
-                return history[index + 1:]
-
-        raise ValueError(
-            "ContextState 的压缩边界在原始历史中不存在"
-        )
-
-    def _build_system_content(
-        self,
-        profile: Dict[str, str],
-        state: ContextState,
-    ) -> str:
-        """组装角色设定与历史摘要。"""
-        return self._join_system_content(
-            profile=profile,
-            summary=state.summary,
         )
 
     @staticmethod
