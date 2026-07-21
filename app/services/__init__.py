@@ -7,6 +7,7 @@ from app.services.versioned_context_compression_service import (
 from app.services.versioned_context_manager import (
     VersionedContextManager,
 )
+from app.services.versioned_chat_service import VersionedChatService
 
 __all__ = [
     "BranchService",
@@ -15,4 +16,5 @@ __all__ = [
     "TurnVariant",
     "VersionedContextCompressionService",
     "VersionedContextManager",
+    "VersionedChatService",
 ]

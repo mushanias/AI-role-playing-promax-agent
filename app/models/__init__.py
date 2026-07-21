@@ -14,6 +14,7 @@ from app.models.compression_plan import (
     VersionedCompressionOutcome,
     VersionedCompressionPlan,
 )
+from app.models.chat_turn import ChatTurnResult
 
 __all__ = [
     "Branch",
@@ -26,4 +27,5 @@ __all__ = [
     "ManagedContext",
     "VersionedCompressionOutcome",
     "VersionedCompressionPlan",
+    "ChatTurnResult",
 ]
