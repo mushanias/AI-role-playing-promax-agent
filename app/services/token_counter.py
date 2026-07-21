@@ -3,8 +3,6 @@
 from collections.abc import Sequence
 from typing import Mapping
 
-import tiktoken
-
 
 class TokenCounter:
     """用于 Context 预算判断的 token 预估器。"""
@@ -13,6 +11,9 @@ class TokenCounter:
     REPLY_OVERHEAD = 2
 
     def __init__(self, encoding_name: str = "cl100k_base") -> None:
+        # 延迟加载二进制依赖，读取历史等非 LLM 请求无需初始化分词器。
+        import tiktoken
+
         self.encoding = tiktoken.get_encoding(encoding_name)
 
     def count_text(self, text: str) -> int:
