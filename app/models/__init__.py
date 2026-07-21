@@ -5,6 +5,7 @@ from app.models.conversation import (
     Turn,
     TurnStatus,
 )
+from app.models.context_plan import ContextCandidate, ContextPlan
 
 __all__ = [
     "Branch",
@@ -12,4 +13,6 @@ __all__ = [
     "SummaryVersion",
     "Turn",
     "TurnStatus",
+    "ContextCandidate",
+    "ContextPlan",
 ]

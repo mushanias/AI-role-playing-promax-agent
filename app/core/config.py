@@ -68,3 +68,21 @@ MAX_COMPRESSION_PASSES = int(
 
 if MAX_COMPRESSION_PASSES < 1:
     raise ValueError("MAX_COMPRESSION_PASSES 必须大于 0")
+
+# 新分支 Context 的质量水位；完成最终接线前不影响旧聊天流程。
+CONTEXT_HIGH_WATERMARK = int(
+    os.getenv("CONTEXT_HIGH_WATERMARK", "40000")
+)
+CONTEXT_LOW_WATERMARK = int(
+    os.getenv("CONTEXT_LOW_WATERMARK", "25000")
+)
+RECENT_RAW_TOKEN_TARGET = int(
+    os.getenv("RECENT_RAW_TOKEN_TARGET", "10000")
+)
+
+if CONTEXT_LOW_WATERMARK <= 0:
+    raise ValueError("CONTEXT_LOW_WATERMARK 必须大于 0")
+if CONTEXT_HIGH_WATERMARK <= CONTEXT_LOW_WATERMARK:
+    raise ValueError("CONTEXT_HIGH_WATERMARK 必须大于低水位")
+if not 0 < RECENT_RAW_TOKEN_TARGET < CONTEXT_LOW_WATERMARK:
+    raise ValueError("RECENT_RAW_TOKEN_TARGET 必须处于 0 和低水位之间")
