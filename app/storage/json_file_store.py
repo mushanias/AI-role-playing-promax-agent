@@ -88,3 +88,4 @@ class JsonFileStore:
                     os.remove(temp_path)
 
         await asyncio.to_thread(_write)
+#通用工具

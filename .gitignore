@@ -17,3 +17,6 @@ build/
 .env
 .env.local
 .env.*.local
+
+# IDE 本地项目配置
+.idea/

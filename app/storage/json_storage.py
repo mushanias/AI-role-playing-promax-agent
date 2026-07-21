@@ -17,6 +17,8 @@ class JsonStorage(BaseStorage):
             file_path=file_path,
             default_data=[],
         )
+        #JsonStorage **拥有**一个 JSON 文件读写器，
+        # 所以它通过 self.file_store 使用 JsonFileStore
         logger.debug(f"消息存储初始化完成：{file_path}")
 
     async def save_message(self, message: Dict) -> None:
