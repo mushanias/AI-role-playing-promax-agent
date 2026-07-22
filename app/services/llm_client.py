@@ -1,4 +1,4 @@
-"""统一 LLM 客户端：适配 OpenAI 与 Anthropic SDK（异步）。"""
+"""把模型设置中的参数直接发送给对应 SDK。"""
 
 import logging
 import time
@@ -14,25 +14,19 @@ logger = logging.getLogger(__name__)
 
 
 class LLMClient:
-    """通过统一的 chat 接口调用不同 SDK。"""
+    """下游统一使用的 LLM 客户端。"""
 
     def __init__(self, model: LLMModel) -> None:
-        """按照模型配置初始化对应的异步 SDK 客户端。"""
+        """按照 sdk 判断一次，其余参数直接来自模型设置字典。"""
         self.model = model
-        if model.adapter == "anthropic":
-            self.client = anthropic.AsyncAnthropic(
-                api_key=model.api_key,
-                base_url=model.base_url,
-            )
+        if model["sdk"] == "anthropic":
+            self.client = anthropic.AsyncAnthropic(**model["client_params"])
         else:
-            self.client = openai.AsyncOpenAI(
-                api_key=model.api_key,
-                base_url=model.base_url,
-            )
+            self.client = openai.AsyncOpenAI(**model["client_params"])
         logger.debug(
             "LLM 客户端初始化完成，SDK: %s，模型: %s",
-            model.adapter,
-            model.model,
+            model["sdk"],
+            model["request_params"]["model"],
         )
 
     async def chat(self, messages: List[Dict]) -> str:
@@ -42,9 +36,9 @@ class LLMClient:
         logger.debug("调用 LLM：%s 条消息，共 %s 字", msg_count, total_chars)
 
         start_time = time.time()
-        if self.model.adapter == "anthropic":
+        if self.model["sdk"] == "anthropic":
             reply = await self._chat_anthropic(messages)
-        elif self.model.adapter == "openai_responses":
+        elif self.model["sdk"] == "openai_responses":
             reply = await self._chat_openai_responses(messages)
         else:
             reply = await self._chat_openai(messages)
@@ -60,8 +54,8 @@ class LLMClient:
         """调用 OpenAI 兼容接口。"""
         try:
             response = await self.client.chat.completions.create(
-                model=self.model.model,
                 messages=messages,
+                **self.model["request_params"],
             )
         except openai.AuthenticationError:
             raise LLMAuthError(
@@ -90,9 +84,8 @@ class LLMClient:
         """调用 OpenAI Responses 兼容接口。"""
         try:
             response = await self.client.responses.create(
-                model=self.model.model,
                 input=messages,
-                max_output_tokens=self.model.max_tokens,
+                **self.model["request_params"],
             )
         except openai.AuthenticationError:
             raise LLMAuthError(
@@ -127,11 +120,8 @@ class LLMClient:
             for message in messages
             if message["role"] != "system"
         ]
-        request = {
-            "model": self.model.model,
-            "max_tokens": self.model.max_tokens,
-            "messages": chat_messages,
-        }
+        request = dict(self.model["request_params"])
+        request["messages"] = chat_messages
         if system_parts:
             request["system"] = "\n\n".join(system_parts)
 

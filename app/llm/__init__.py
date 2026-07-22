@@ -1,13 +1,11 @@
-"""LLM 模型目录与运行配置的统一入口。"""
+"""LLM 模型设置的统一入口。"""
 
 from app.llm.settings import (
     DEFAULT_LLM_MODEL,
     DEFAULT_LLM_PROVIDER,
-    MODEL_PRESETS,
-    LLMAdapter,
+    MODEL_SETTINGS,
     LLMModel,
-    LLMProviderPreset,
-    build_custom_llm_model,
+    LLMSDK,
     build_llm_model,
     llm_model,
 )
@@ -15,11 +13,9 @@ from app.llm.settings import (
 __all__ = [
     "DEFAULT_LLM_MODEL",
     "DEFAULT_LLM_PROVIDER",
-    "MODEL_PRESETS",
-    "LLMAdapter",
+    "MODEL_SETTINGS",
     "LLMModel",
-    "LLMProviderPreset",
-    "build_custom_llm_model",
+    "LLMSDK",
     "build_llm_model",
     "llm_model",
 ]
