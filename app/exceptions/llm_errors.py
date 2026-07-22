@@ -17,3 +17,7 @@ class LLMNetworkError(LLMException):
 
 class LLMResponseError(LLMException):
     """LLM 返回格式异常（如空回复）"""
+
+
+class InvalidLLMConfigurationError(LLMException):
+    """模型厂商、模型名或自定义预设无效。"""

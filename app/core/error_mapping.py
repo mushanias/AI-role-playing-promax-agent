@@ -6,6 +6,7 @@ from app.exceptions import (
     BaseAppException,
     BranchNotFoundError,
     InvalidBranchOperationError,
+    InvalidLLMConfigurationError,
     LLMAuthError,
     LLMNetworkError,
     LLMResponseError,
@@ -41,6 +42,7 @@ def map_app_exception(error: BaseAppException) -> ErrorDescriptor:
         (LLMAuthError, 502, "llm_auth_error"),
         (LLMNetworkError, 503, "llm_network_error"),
         (LLMResponseError, 502, "llm_response_error"),
+        (InvalidLLMConfigurationError, 400, "invalid_llm_configuration"),
         (StorageCorruptionError, 500, "storage_corruption"),
         (StorageIOError, 500, "storage_io_error"),
     )

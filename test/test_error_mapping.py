@@ -5,6 +5,7 @@ import unittest
 from app.core.error_mapping import map_app_exception
 from app.exceptions import (
     BranchNotFoundError,
+    InvalidLLMConfigurationError,
     InvalidBranchOperationError,
     LLMNetworkError,
     StorageCorruptionError,
@@ -37,6 +38,14 @@ class ErrorMappingTests(unittest.TestCase):
 
         self.assertEqual(result.status_code, 500)
         self.assertEqual(result.code, "storage_corruption")
+
+    def test_invalid_llm_configuration_maps_to_400(self) -> None:
+        result = map_app_exception(
+            InvalidLLMConfigurationError("模型不存在")
+        )
+
+        self.assertEqual(result.status_code, 400)
+        self.assertEqual(result.code, "invalid_llm_configuration")
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from app.core.error_mapping import map_app_exception
 from app.core.logger import setup_logging
 from app.exceptions import BaseAppException
-from app.routes import conversations_router, profile_router
+from app.routes import conversations_router, llm_router, profile_router
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -21,6 +21,7 @@ app = FastAPI(
 # 注册路由
 app.include_router(profile_router)
 app.include_router(conversations_router)
+app.include_router(llm_router)
 
 
 @app.exception_handler(BaseAppException)

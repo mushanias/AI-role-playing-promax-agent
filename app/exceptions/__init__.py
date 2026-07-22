@@ -2,6 +2,7 @@
 
 from app.exceptions.base import BaseAppException
 from app.exceptions.llm_errors import (
+    InvalidLLMConfigurationError,
     LLMException,
     LLMAuthError,
     LLMNetworkError,

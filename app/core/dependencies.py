@@ -45,11 +45,7 @@ def get_conversation_repository() -> ConversationRepository:
 @lru_cache
 def get_versioned_llm_client() -> LLMClient:
     """提供新版聊天与压缩共用的异步 LLM 客户端。"""
-    return LLMClient(
-        llm_model.api_key,
-        llm_model.base_url,
-        llm_model.model,
-    )
+    return LLMClient(llm_model)
 
 
 @lru_cache

@@ -16,13 +16,25 @@ from app.schemas.conversation import (
     TurnVariantResponse,
     TurnVariantsResponse,
 )
+from app.schemas.llm import (
+    CustomLLMPresetRequest,
+    LLMConnectionTestRequest,
+    LLMConnectionTestResponse,
+    LLMPresetListResponse,
+    LLMProviderResponse,
+)
 
 __all__ = [
     "BranchActivationResponse",
     "ChatTurnResponse",
     "ConversationCreateResponse",
     "ConversationHistoryResponse",
+    "CustomLLMPresetRequest",
     "HistoryTurnResponse",
+    "LLMConnectionTestRequest",
+    "LLMConnectionTestResponse",
+    "LLMPresetListResponse",
+    "LLMProviderResponse",
     "ProfileResponse",
     "ProfileUpdateRequest",
     "RewriteTurnRequest",
