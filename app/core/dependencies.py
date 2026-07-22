@@ -7,14 +7,12 @@ from app.core.config import (
     CONTEXT_LOW_WATERMARK,
     CONTEXT_SAFETY_MARGIN,
     CONVERSATIONS_PATH,
-    DEEPSEEK_API_KEY,
-    DEEPSEEK_BASE_URL,
-    DEEPSEEK_MODEL,
     MAX_COMPRESSION_PASSES,
     PROFILE_PATH,
     RECENT_RAW_TOKEN_TARGET,
     SUMMARY_TOKEN_BUDGET,
 )
+from app.llm import llm_model
 from app.services.branch_service import BranchService
 from app.services.conversation_service import ConversationService
 from app.services.context_builder import ContextBuilder
@@ -48,9 +46,9 @@ def get_conversation_repository() -> ConversationRepository:
 def get_versioned_llm_client() -> LLMClient:
     """提供新版聊天与压缩共用的异步 LLM 客户端。"""
     return LLMClient(
-        DEEPSEEK_API_KEY,
-        DEEPSEEK_BASE_URL,
-        DEEPSEEK_MODEL,
+        llm_model.api_key,
+        llm_model.base_url,
+        llm_model.model,
     )
 
 

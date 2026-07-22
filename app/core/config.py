@@ -6,11 +6,6 @@ from dotenv import load_dotenv
 # 把项目根目录下的 .env 文件加载进环境变量
 load_dotenv()
 
-# DeepSeek 配置
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
-DEEPSEEK_BASE_URL = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
-
 # 存储配置
 PROFILE_PATH = os.getenv("PROFILE_PATH", "data/profile.json")
 CONVERSATIONS_PATH = os.getenv(
