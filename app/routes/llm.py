@@ -37,7 +37,7 @@ async def list_llm_presets() -> LLMPresetListResponse:
         ],
     )
 
-
+#这个路由暴露热插拔llm
 @router.post(
     "/connection-test",
     response_model=LLMConnectionTestResponse,
