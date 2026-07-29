@@ -4,11 +4,11 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from app.services.llm_client import LLMClient
+from app.llm.client import LLMClient
 
 
 class LLMClientTests(unittest.IsolatedAsyncioTestCase):
-    @patch("app.services.llm_client.openai.AsyncOpenAI")
+    @patch("app.llm.client.openai.AsyncOpenAI")
     async def test_openai_sdk_keeps_original_message_format(self, client_type) -> None:
         sdk_client = client_type.return_value
         sdk_client.chat.completions.create = AsyncMock(
@@ -45,7 +45,7 @@ class LLMClientTests(unittest.IsolatedAsyncioTestCase):
             messages=messages,
         )
 
-    @patch("app.services.llm_client.anthropic.AsyncAnthropic")
+    @patch("app.llm.client.anthropic.AsyncAnthropic")
     async def test_anthropic_sdk_separates_system_and_text_reply(self, client_type) -> None:
         sdk_client = client_type.return_value
         sdk_client.messages.create = AsyncMock(
@@ -81,7 +81,7 @@ class LLMClientTests(unittest.IsolatedAsyncioTestCase):
             messages=[{"role": "user", "content": "你好"}],
         )
 
-    @patch("app.services.llm_client.openai.AsyncOpenAI")
+    @patch("app.llm.client.openai.AsyncOpenAI")
     async def test_openai_responses_adapter_returns_output_text(self, client_type) -> None:
         sdk_client = client_type.return_value
         sdk_client.responses.create = AsyncMock(

@@ -4,14 +4,23 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 
-from app.models.compression_plan import VersionedCompressionOutcome
-from app.models.context_plan import ContextCandidate
-from app.models.conversation import Branch, Conversation, Turn, TurnStatus
-from app.services.context_builder import ContextBuilder
-from app.services.context_planner import ContextPlanner
-from app.services.versioned_context_manager import VersionedContextManager
-from app.storage.conversation_repository import ConversationRepository
-from app.storage.profile_storage import ProfileStorage
+from app.conversations.conversation import (
+    Branch,
+    Conversation,
+    Turn,
+    TurnStatus,
+)
+from app.conversations.conversation_repository import ConversationRepository
+from app.conversations.memory.compression_plan import (
+    VersionedCompressionOutcome,
+)
+from app.conversations.memory.context_builder import ContextBuilder
+from app.conversations.memory.context_plan import ContextCandidate
+from app.conversations.memory.context_planner import ContextPlanner
+from app.conversations.memory.versioned_context_manager import (
+    VersionedContextManager,
+)
+from app.profile.storage import ProfileStorage
 
 
 NOW = datetime.now(timezone.utc)

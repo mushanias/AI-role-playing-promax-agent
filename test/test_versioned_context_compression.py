@@ -5,21 +5,21 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from typing import Mapping, Sequence
 
-from app.models.conversation import (
+from app.conversations.conversation import (
     Branch,
     Conversation,
     SummaryVersion,
     Turn,
     TurnStatus,
 )
-from app.services.compressor import CompressionResult
-from app.services.context_builder import ContextBuilder
-from app.services.context_planner import ContextPlanner
-from app.services.versioned_context_compression_service import (
+from app.conversations.conversation_repository import ConversationRepository
+from app.conversations.memory.compressor import CompressionResult
+from app.conversations.memory.context_builder import ContextBuilder
+from app.conversations.memory.context_planner import ContextPlanner
+from app.conversations.memory.versioned_context_compression_service import (
     CompressionBatchPlanner,
     VersionedContextCompressionService,
 )
-from app.storage.conversation_repository import ConversationRepository
 
 
 NOW = datetime.now(timezone.utc)

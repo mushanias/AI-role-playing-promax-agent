@@ -1,57 +1,49 @@
-"""CLI 入口：使用新版会话与分支服务运行单个对话。"""
+"""FastAPI 应用的唯一入口。"""
 
-import asyncio
 import logging
 
-from app.core.dependencies import get_conversation_service
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+from app.conversations.routes import router as conversations_router
+from app.core.error_mapping import map_app_exception
 from app.core.logger import setup_logging
 from app.exceptions import BaseAppException
+from app.llm.routes import router as llm_router
+from app.profile.routes import router as profile_router
 
+setup_logging()
 logger = logging.getLogger(__name__)
 
+app = FastAPI(
+    title="角色扮演 Agent",
+    description="为角色扮演服务的对话 Agent",
+    version="0.2.0",
+)
 
-async def run_chat_loop() -> None:
-    """在同一事件循环中创建会话并持续发送消息。"""
-    service = get_conversation_service()
-    conversation = await service.create_conversation()
-
-    print("=" * 40)
-    print("  角色扮演 Agent 已启动")
-    print(f"  会话 ID: {conversation.conversation_id}")
-    print("  输入 'quit' 退出对话")
-    print("=" * 40)
-    print()
-
-    while True:
-        user_input = input("你: ").strip()
-
-        if not user_input:
-            continue
-
-        if user_input.lower() == "quit":
-            logger.info("用户退出对话")
-            print("再见！")
-            break
-
-        try:
-            result = await service.send_message(
-                conversation_id=conversation.conversation_id,
-                user_input=user_input,
-            )
-            print(f"AI: {result.reply}")
-            for warning in result.warnings:
-                print(f"[提示] {warning}")
-            print()
-        except BaseAppException as error:
-            logger.error(f"业务错误: {error.message}", exc_info=True)
-            print(f"[错误] {error.message}")
+app.include_router(profile_router)
+app.include_router(conversations_router)
+app.include_router(llm_router)
 
 
-def main() -> None:
-    setup_logging()
-    logger.info("程序启动")
-    asyncio.run(run_chat_loop())
+@app.exception_handler(BaseAppException)
+async def app_exception_handler(
+    request: Request,
+    exc: BaseAppException,
+) -> JSONResponse:
+    logger.error("业务错误: %s", exc.message, exc_info=True)
+    descriptor = map_app_exception(exc)
+    return JSONResponse(
+        status_code=descriptor.status_code,
+        content={
+            "error": {
+                "code": descriptor.code,
+                "message": descriptor.message,
+            }
+        },
+    )
 
 
-if __name__ == "__main__":
-    main()
+@app.get("/")
+async def root() -> dict[str, str]:
+    return {"status": "ok"}

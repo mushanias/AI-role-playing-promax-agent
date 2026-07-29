@@ -5,12 +5,17 @@ import unittest
 from datetime import datetime, timezone
 
 from app.exceptions import InvalidBranchOperationError, LLMNetworkError
-from app.models.context_plan import ManagedContext
-from app.models.conversation import Branch, Conversation, Turn, TurnStatus
-from app.services.context_builder import ContextBuilder
-from app.services.context_planner import ContextPlanner
-from app.services.versioned_chat_service import VersionedChatService
-from app.storage.conversation_repository import ConversationRepository
+from app.conversations.conversation import (
+    Branch,
+    Conversation,
+    Turn,
+    TurnStatus,
+)
+from app.conversations.conversation_repository import ConversationRepository
+from app.conversations.memory.context_builder import ContextBuilder
+from app.conversations.memory.context_plan import ManagedContext
+from app.conversations.memory.context_planner import ContextPlanner
+from app.conversations.versioned_chat_service import VersionedChatService
 
 
 NOW = datetime.now(timezone.utc)

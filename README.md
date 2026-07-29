@@ -232,7 +232,35 @@ S2 覆盖 T1~T6
 - JSON 并发保护只覆盖单个 Python 进程。
 - Context 数值是质量水位，不代表模型供应商的绝对输入上限。
 
-## 12. 验证
+## 12. 项目结构与启动
+
+后端采用按业务功能组织的模块化单体：
+
+```text
+app/
+├── main.py
+├── core/
+├── conversations/
+│   └── memory/
+├── profile/
+├── llm/
+├── storage/
+└── exceptions/
+```
+
+- `conversations`：会话聚合、剧情分支、历史持久化及 HTTP 接口。
+- `conversations/memory`：只属于会话生命周期的 Context 与压缩能力。
+- `profile`：独立于单个会话的全局角色设定。
+- `llm`：模型目录、连接测试及供应商调用适配。
+- `storage`：跨业务模块复用的底层 JSON 文件能力。
+
+FastAPI 只保留一个正式入口：
+
+```powershell
+uvicorn app.main:app --reload
+```
+
+## 13. 验证
 
 ```powershell
 python -m unittest discover -s test -p "test_*.py" -v

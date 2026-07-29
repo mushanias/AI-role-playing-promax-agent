@@ -12,22 +12,24 @@ from app.core.config import (
     RECENT_RAW_TOKEN_TARGET,
     SUMMARY_TOKEN_BUDGET,
 )
-from app.llm import llm_model
-from app.services.branch_service import BranchService
-from app.services.conversation_service import ConversationService
-from app.services.context_builder import ContextBuilder
-from app.services.context_planner import ContextPlanner
-from app.services.llm_compressor import LLMCompressor
-from app.services.token_counter import TokenCounter
-from app.services.versioned_chat_service import VersionedChatService
-from app.services.versioned_context_compression_service import (
+from app.conversations.branch_service import BranchService
+from app.conversations.conversation_repository import ConversationRepository
+from app.conversations.conversation_service import ConversationService
+from app.conversations.memory.context_builder import ContextBuilder
+from app.conversations.memory.context_planner import ContextPlanner
+from app.conversations.memory.llm_compressor import LLMCompressor
+from app.conversations.memory.token_counter import TokenCounter
+from app.conversations.memory.versioned_context_compression_service import (
     CompressionBatchPlanner,
     VersionedContextCompressionService,
 )
-from app.services.versioned_context_manager import VersionedContextManager
-from app.storage.conversation_repository import ConversationRepository
-from app.storage.profile_storage import ProfileStorage
-from app.services.llm_client import LLMClient
+from app.conversations.memory.versioned_context_manager import (
+    VersionedContextManager,
+)
+from app.conversations.versioned_chat_service import VersionedChatService
+from app.llm import llm_model
+from app.llm.client import LLMClient
+from app.profile.storage import ProfileStorage
 
 
 @lru_cache

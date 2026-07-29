@@ -3,10 +3,10 @@
 ### 📦 输出
 
 - `app/llm/settings.py`：按 SDK 文档写好的模型参数字典，以及统一的 `llm_model`。
-- `app/services/llm_client.py`：判断 SDK，并将字典参数直接发送给 SDK。
-- `app/services/llm_connection_service.py`：发送严格的“连接成功”测试消息。
-- `app/schemas/llm.py`：模型选择、自定义设置和 API Key 的 HTTP 数据结构。
-- `app/routes/llm.py`：暴露模型列表和无状态连接测试接口。
+- `app/llm/client.py`：判断 SDK，并将字典参数直接发送给 SDK。
+- `app/llm/connection_service.py`：发送严格的“连接成功”测试消息。
+- `app/llm/schemas.py`：模型选择、自定义设置和 API Key 的 HTTP 数据结构。
+- `app/llm/routes.py`：暴露模型列表和无状态连接测试接口。
 
 ### 🧩 解决的问题
 

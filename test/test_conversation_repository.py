@@ -12,13 +12,13 @@ from app.exceptions import (
     StorageCorruptionError,
     StorageNotFoundError,
 )
-from app.models.conversation import (
+from app.conversations.conversation import (
     Branch,
     Conversation,
     Turn,
     TurnStatus,
 )
-from app.storage.conversation_repository import ConversationRepository
+from app.conversations.conversation_repository import ConversationRepository
 
 
 def empty_conversation(conversation_id: str) -> Conversation:

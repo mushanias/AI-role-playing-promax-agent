@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
-from app.api import app
+from app.main import app
 
 
 class LLMRouteTests(unittest.TestCase):
@@ -25,7 +25,7 @@ class LLMRouteTests(unittest.TestCase):
         )
 
     @patch(
-        "app.routes.llm.LLMConnectionService.test_connection",
+        "app.llm.routes.LLMConnectionService.test_connection",
         new_callable=AsyncMock,
         return_value=True,
     )
@@ -54,7 +54,7 @@ class LLMRouteTests(unittest.TestCase):
         self.assertEqual(model["client_params"]["api_key"], "secret")
 
     @patch(
-        "app.routes.llm.LLMConnectionService.test_connection",
+        "app.llm.routes.LLMConnectionService.test_connection",
         new_callable=AsyncMock,
         return_value=True,
     )
@@ -70,7 +70,7 @@ class LLMRouteTests(unittest.TestCase):
         self.assertEqual(model["request_params"]["model"], "MiniMax-M3")
 
     @patch(
-        "app.routes.llm.LLMConnectionService.test_connection",
+        "app.llm.routes.LLMConnectionService.test_connection",
         new_callable=AsyncMock,
         return_value=True,
     )

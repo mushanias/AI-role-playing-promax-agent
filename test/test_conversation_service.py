@@ -4,11 +4,16 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 
-from app.models.chat_turn import ChatTurnResult
-from app.models.conversation import Branch, Conversation, Turn, TurnStatus
-from app.services.branch_service import BranchService
-from app.services.conversation_service import ConversationService
-from app.storage.conversation_repository import ConversationRepository
+from app.conversations.branch_service import BranchService
+from app.conversations.chat_turn import ChatTurnResult
+from app.conversations.conversation import (
+    Branch,
+    Conversation,
+    Turn,
+    TurnStatus,
+)
+from app.conversations.conversation_repository import ConversationRepository
+from app.conversations.conversation_service import ConversationService
 
 
 NOW = datetime.now(timezone.utc)

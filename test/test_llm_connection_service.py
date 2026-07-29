@@ -3,7 +3,7 @@
 import unittest
 
 from app.llm import build_llm_model
-from app.services.llm_connection_service import LLMConnectionService
+from app.llm.connection_service import LLMConnectionService
 
 
 class FakeConnectionClient:

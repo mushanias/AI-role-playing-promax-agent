@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from pydantic import ValidationError
 
-from app.models.conversation import (
+from app.conversations.conversation import (
     Branch,
     Conversation,
     SummaryVersion,

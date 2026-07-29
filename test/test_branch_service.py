@@ -5,15 +5,15 @@ import unittest
 from datetime import datetime, timedelta, timezone
 
 from app.exceptions import InvalidBranchOperationError
-from app.models.conversation import (
+from app.conversations.conversation import (
     Branch,
     Conversation,
     SummaryVersion,
     Turn,
     TurnStatus,
 )
-from app.services.branch_service import BranchService
-from app.storage.conversation_repository import ConversationRepository
+from app.conversations.branch_service import BranchService
+from app.conversations.conversation_repository import ConversationRepository
 
 
 NOW = datetime.now(timezone.utc)

@@ -3,19 +3,21 @@
 import tempfile
 import unittest
 
-from app.services.branch_service import BranchService
-from app.services.conversation_service import ConversationService
-from app.services.context_builder import ContextBuilder
-from app.services.context_planner import ContextPlanner
-from app.services.llm_compressor import LLMCompressor
-from app.services.versioned_chat_service import VersionedChatService
-from app.services.versioned_context_compression_service import (
+from app.conversations.branch_service import BranchService
+from app.conversations.conversation_repository import ConversationRepository
+from app.conversations.conversation_service import ConversationService
+from app.conversations.memory.context_builder import ContextBuilder
+from app.conversations.memory.context_planner import ContextPlanner
+from app.conversations.memory.llm_compressor import LLMCompressor
+from app.conversations.memory.versioned_context_compression_service import (
     CompressionBatchPlanner,
     VersionedContextCompressionService,
 )
-from app.services.versioned_context_manager import VersionedContextManager
-from app.storage.conversation_repository import ConversationRepository
-from app.storage.profile_storage import ProfileStorage
+from app.conversations.memory.versioned_context_manager import (
+    VersionedContextManager,
+)
+from app.conversations.versioned_chat_service import VersionedChatService
+from app.profile.storage import ProfileStorage
 
 
 class CharacterTokenCounter:
