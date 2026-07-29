@@ -16,6 +16,8 @@ class MainApplicationTests(unittest.TestCase):
         self.assertNotIn("/profile", paths)
         self.assertNotIn("/profile/setting", paths)
         self.assertIn("/conversations", paths)
+        self.assertIn("/performance/data", paths)
+        self.assertNotIn("/performance", paths)
 
 
 if __name__ == "__main__":

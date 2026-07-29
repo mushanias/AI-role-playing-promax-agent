@@ -80,6 +80,17 @@ class FakeLLMClient:
         return self.reply
 
 
+class FakePerformanceSink:
+    def __init__(self, error=None) -> None:
+        self.error = error
+        self.records = []
+
+    async def record(self, **record) -> None:
+        if self.error is not None:
+            raise self.error
+        self.records.append(record)
+
+
 def initial_conversation() -> Conversation:
     first_turn = Turn(
         turn_id="turn-1",
@@ -120,7 +131,12 @@ class VersionedChatServiceTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self) -> None:
         self.temporary_directory.cleanup()
 
-    def build_service(self, llm_client, warnings=()):
+    def build_service(
+        self,
+        llm_client,
+        warnings=(),
+        performance_sink=None,
+    ):
         context_manager = InspectingContextManager(
             repository=self.repository,
             warnings=warnings,
@@ -129,6 +145,7 @@ class VersionedChatServiceTests(unittest.IsolatedAsyncioTestCase):
             repository=self.repository,
             llm_client=llm_client,
             context_manager=context_manager,
+            performance_sink=performance_sink,
         )
         return service, context_manager
 
@@ -161,6 +178,50 @@ class VersionedChatServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             llm_client.messages[-1],
             {"role": "user", "content": "第二问"},
+        )
+
+    async def test_success_records_performance_metrics(self) -> None:
+        performance_sink = FakePerformanceSink()
+        service, _ = self.build_service(
+            FakeLLMClient(),
+            warnings=("上下文质量下降",),
+            performance_sink=performance_sink,
+        )
+
+        await service.send(
+            conversation_id="conversation-1",
+            user_input="第二问",
+        )
+
+        self.assertEqual(len(performance_sink.records), 1)
+        record = performance_sink.records[0]
+        self.assertEqual(record["conversation_id"], "conversation-1")
+        self.assertEqual(record["branch_id"], "branch-main")
+        self.assertGreaterEqual(record["total_ms"], record["llm_ms"])
+        self.assertGreaterEqual(record["total_ms"], record["context_ms"])
+        self.assertGreater(record["input_tokens"], 0)
+        self.assertEqual(record["compression_passes"], 1)
+        self.assertTrue(record["quality_degraded"])
+
+    async def test_performance_failure_does_not_fail_chat(self) -> None:
+        performance_sink = FakePerformanceSink(
+            error=OSError("磁盘暂不可用")
+        )
+        service, _ = self.build_service(
+            FakeLLMClient(reply="仍然成功"),
+            performance_sink=performance_sink,
+        )
+
+        result = await service.send(
+            conversation_id="conversation-1",
+            user_input="第二问",
+        )
+        loaded = await self.repository.load("conversation-1")
+
+        self.assertEqual(result.reply, "仍然成功")
+        self.assertEqual(
+            loaded.turns[result.turn_id].status,
+            TurnStatus.COMPLETED,
         )
 
     async def test_llm_failure_preserves_failed_turn(self) -> None:

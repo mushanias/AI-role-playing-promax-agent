@@ -104,6 +104,26 @@ POST /conversations/{conversation_id}/branches/{branch_id}/activate
 
 LLM 配置和连接测试接口位于 `/llm`。
 
+## 性能面板
+
+每次成功对话会旁路记录以下指标：
+
+```text
+总耗时、Context 耗时、LLM 耗时、输入 Token 估算、
+压缩轮数、是否发生质量降级
+```
+
+指标默认追加到 `data/performance.csv`，记录失败不会影响聊天结果。
+
+启动后端后访问：
+
+```text
+http://127.0.0.1:8000/performance
+```
+
+页面提供耗时概览、P95、压缩与降级比例、趋势图和最近请求表格。
+只读数据接口为 `GET /performance/data`。
+
 ## 项目结构
 
 ```text
@@ -113,6 +133,7 @@ app/
 ├── core/                配置、依赖注入、日志与错误映射
 ├── exceptions/          业务异常
 ├── llm/                 模型设置、客户端与连接测试
+├── performance/         旁路性能记录与只读仪表盘
 └── storage/             通用 JSON 文件存储
 
 data/

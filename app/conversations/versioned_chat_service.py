@@ -3,6 +3,7 @@
 import asyncio
 import logging
 from datetime import datetime, timezone
+from time import perf_counter
 from typing import Dict, List, Optional, Protocol
 from uuid import uuid4
 
@@ -15,6 +16,7 @@ from app.conversations.chat_turn import ChatTurnResult
 from app.conversations.conversation import Conversation, Turn, TurnStatus
 from app.conversations.conversation_repository import ConversationRepository
 from app.conversations.memory.context_plan import ManagedContext
+from app.performance.recorder import PerformanceSink
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +47,12 @@ class VersionedChatService:
         repository: ConversationRepository,
         llm_client: ChatLLMClient,
         context_manager: ManagedContextBuilder,
+        performance_sink: Optional[PerformanceSink] = None,
     ) -> None:
         self.repository = repository
         self.llm_client = llm_client
         self.context_manager = context_manager
+        self.performance_sink = performance_sink
 
     async def send(
         self,
@@ -57,6 +61,7 @@ class VersionedChatService:
         branch_id: Optional[str] = None,
     ) -> ChatTurnResult:
         """在指定分支上完成一次用户输入与助手回复。"""
+        request_started = perf_counter()
         turn_id = str(uuid4())
         selected_branch_id = await self._create_pending_turn(
             conversation_id=conversation_id,
@@ -66,11 +71,16 @@ class VersionedChatService:
         )
 
         try:
+            context_started = perf_counter()
             context = await self.context_manager.build(
                 conversation_id=conversation_id,
                 branch_id=selected_branch_id,
             )
+            context_ms = self._elapsed_ms(context_started)
+
+            llm_started = perf_counter()
             reply = await self.llm_client.chat(list(context.messages))
+            llm_ms = self._elapsed_ms(llm_started)
             await self._complete_turn(
                 conversation_id=conversation_id,
                 branch_id=selected_branch_id,
@@ -96,6 +106,18 @@ class VersionedChatService:
             )
             raise
 
+        total_ms = self._elapsed_ms(request_started)
+        await self._record_performance_safely(
+            conversation_id=conversation_id,
+            branch_id=selected_branch_id,
+            total_ms=total_ms,
+            context_ms=context_ms,
+            llm_ms=llm_ms,
+            input_tokens=context.estimated_tokens,
+            compression_passes=context.compression_passes,
+            quality_degraded=context.quality_degraded,
+        )
+
         return ChatTurnResult(
             conversation_id=conversation_id,
             branch_id=selected_branch_id,
@@ -105,6 +127,40 @@ class VersionedChatService:
             compression_passes=context.compression_passes,
             quality_degraded=context.quality_degraded,
         )
+
+    async def _record_performance_safely(
+        self,
+        *,
+        conversation_id: str,
+        branch_id: str,
+        total_ms: float,
+        context_ms: float,
+        llm_ms: float,
+        input_tokens: int,
+        compression_passes: int,
+        quality_degraded: bool,
+    ) -> None:
+        """记录失败只写日志，绝不改变已经成功的聊天结果。"""
+        if self.performance_sink is None:
+            return
+
+        try:
+            await self.performance_sink.record(
+                conversation_id=conversation_id,
+                branch_id=branch_id,
+                total_ms=total_ms,
+                context_ms=context_ms,
+                llm_ms=llm_ms,
+                input_tokens=input_tokens,
+                compression_passes=compression_passes,
+                quality_degraded=quality_degraded,
+            )
+        except Exception:
+            logger.exception(
+                "无法记录性能指标：conversation=%s branch=%s",
+                conversation_id,
+                branch_id,
+            )
 
     async def _create_pending_turn(
         self,
@@ -247,3 +303,7 @@ class VersionedChatService:
         if not message:
             return error.__class__.__name__
         return f"{error.__class__.__name__}: {message}"
+
+    @staticmethod
+    def _elapsed_ms(started_at: float) -> float:
+        return (perf_counter() - started_at) * 1000

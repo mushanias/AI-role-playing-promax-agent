@@ -27,3 +27,6 @@ logs/
 # 运行时会话数据
 data/conversations/*.json
 !data/conversations/.gitkeep
+
+# 运行时性能指标
+data/performance.csv

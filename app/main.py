@@ -10,6 +10,7 @@ from app.core.error_mapping import map_app_exception
 from app.core.logger import setup_logging
 from app.exceptions import BaseAppException
 from app.llm.routes import router as llm_router
+from app.performance.routes import router as performance_router
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -22,6 +23,7 @@ app = FastAPI(
 
 app.include_router(conversations_router)
 app.include_router(llm_router)
+app.include_router(performance_router)
 
 
 @app.exception_handler(BaseAppException)

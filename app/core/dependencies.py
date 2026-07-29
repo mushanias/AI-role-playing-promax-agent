@@ -8,6 +8,7 @@ from app.core.config import (
     CONTEXT_SAFETY_MARGIN,
     CONVERSATIONS_PATH,
     MAX_COMPRESSION_PASSES,
+    PERFORMANCE_METRICS_PATH,
     RECENT_RAW_TOKEN_TARGET,
     SUMMARY_TOKEN_BUDGET,
 )
@@ -28,6 +29,7 @@ from app.conversations.memory.versioned_context_manager import (
 from app.conversations.versioned_chat_service import VersionedChatService
 from app.llm import llm_model
 from app.llm.client import LLMClient
+from app.performance.recorder import CsvPerformanceRecorder
 
 
 @lru_cache
@@ -40,6 +42,12 @@ def get_conversation_repository() -> ConversationRepository:
 def get_versioned_llm_client() -> LLMClient:
     """提供新版聊天与压缩共用的异步 LLM 客户端。"""
     return LLMClient(llm_model)
+
+
+@lru_cache
+def get_performance_recorder() -> CsvPerformanceRecorder:
+    """提供聊天主流程和只读页面共用的性能记录器。"""
+    return CsvPerformanceRecorder(PERFORMANCE_METRICS_PATH)
 
 
 @lru_cache
@@ -76,6 +84,7 @@ def get_versioned_chat_service() -> VersionedChatService:
         repository=repository,
         llm_client=llm_client,
         context_manager=context_manager,
+        performance_sink=get_performance_recorder(),
     )
 
 

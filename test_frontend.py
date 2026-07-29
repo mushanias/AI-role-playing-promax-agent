@@ -153,6 +153,7 @@ HTML = r"""<!doctype html>
     <header>
       <button id="newConversation">新建会话</button>
       <button id="reloadHistory">刷新历史</button>
+      <button id="openPerformance">性能面板</button>
       <span class="identity" id="identity">尚未创建会话</span>
     </header>
 
@@ -429,6 +430,9 @@ HTML = r"""<!doctype html>
 
     document.querySelector("#newConversation").addEventListener("click", createConversation);
     document.querySelector("#reloadHistory").addEventListener("click", () => loadHistory());
+    document.querySelector("#openPerformance").addEventListener("click", () => {
+      window.open("/performance", "_blank", "noopener");
+    });
     document.querySelector("#sendForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const text = input.value;
