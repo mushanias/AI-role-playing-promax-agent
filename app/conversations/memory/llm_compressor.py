@@ -7,7 +7,7 @@ from app.conversations.memory.compressor import (
     CompressionResult,
 )
 from app.conversations.memory.prompts.loader import (
-    load_roleplay_compression_prompt,
+    load_conversation_compression_prompt,
 )
 
 
@@ -19,11 +19,11 @@ class CompressionLLMClient(Protocol):
 
 
 class LLMCompressor:
-    """使用 LLM 执行角色扮演历史压缩。"""
+    """使用 LLM 执行通用会话历史压缩。"""
 
     def __init__(self, llm_client: CompressionLLMClient) -> None:
         self.llm_client = llm_client
-        self.system_prompt = load_roleplay_compression_prompt()
+        self.system_prompt = load_conversation_compression_prompt()
 
     async def compress(
         self,

@@ -1,14 +1,14 @@
-"""剧情分支相关异常。"""
+"""会话分支相关异常。"""
 
 from app.exceptions.base import BaseAppException
 
 
 class BranchException(BaseAppException):
-    """剧情分支错误的基类。"""
+    """会话分支错误的基类。"""
 
 
 class BranchNotFoundError(BranchException):
-    """指定剧情分支不存在。"""
+    """指定会话分支不存在。"""
 
 
 class TurnNotFoundError(BranchException):

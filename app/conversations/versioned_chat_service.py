@@ -122,11 +122,11 @@ class VersionedChatService:
             branch = conversation.branches.get(selected_branch_id)
             if branch is None:
                 raise BranchNotFoundError(
-                    f"剧情分支不存在：{selected_branch_id}"
+                    f"会话分支不存在：{selected_branch_id}"
                 )
             if branch.pending_turn_id is not None:
                 raise InvalidBranchOperationError(
-                    "当前剧情分支已有正在生成的轮次"
+                    "当前会话分支已有正在生成的轮次"
                 )
 
             pending_turn = Turn(
@@ -146,7 +146,7 @@ class VersionedChatService:
                 return current_branch.branch_id
 
         raise InvalidBranchOperationError(
-            "pending Turn 已创建，但无法定位所属剧情分支"
+            "pending Turn 已创建，但无法定位所属会话分支"
         )
 
     async def _complete_turn(
@@ -162,7 +162,7 @@ class VersionedChatService:
             branch = conversation.branches.get(branch_id)
             if branch is None:
                 raise BranchNotFoundError(
-                    f"剧情分支不存在：{branch_id}"
+                    f"会话分支不存在：{branch_id}"
                 )
             turn = conversation.turns.get(turn_id)
             if turn is None:
@@ -219,7 +219,7 @@ class VersionedChatService:
             branch = conversation.branches.get(branch_id)
             if branch is None:
                 raise BranchNotFoundError(
-                    f"剧情分支不存在：{branch_id}"
+                    f"会话分支不存在：{branch_id}"
                 )
             turn = conversation.turns.get(turn_id)
             if turn is None:

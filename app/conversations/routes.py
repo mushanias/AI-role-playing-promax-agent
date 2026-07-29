@@ -1,4 +1,4 @@
-"""版本化会话、原文历史与剧情分支 HTTP 接口。"""
+"""版本化会话、原文历史与会话分支 HTTP 接口。"""
 
 from typing import Optional
 

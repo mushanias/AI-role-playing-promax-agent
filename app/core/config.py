@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # 存储配置
-PROFILE_PATH = os.getenv("PROFILE_PATH", "data/profile.json")
 CONVERSATIONS_PATH = os.getenv(
     "CONVERSATIONS_PATH",
     "data/conversations",

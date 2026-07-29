@@ -10,18 +10,16 @@ from app.core.error_mapping import map_app_exception
 from app.core.logger import setup_logging
 from app.exceptions import BaseAppException
 from app.llm.routes import router as llm_router
-from app.profile.routes import router as profile_router
 
 setup_logging()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="角色扮演 Agent",
-    description="为角色扮演服务的对话 Agent",
+    title="版本化会话引擎",
+    description="支持会话分支、历史回退和上下文压缩的通用后端",
     version="0.2.0",
 )
 
-app.include_router(profile_router)
 app.include_router(conversations_router)
 app.include_router(llm_router)
 

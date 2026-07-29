@@ -148,7 +148,7 @@ class ConversationModelTests(unittest.TestCase):
         summary = SummaryVersion(
             summary_id="summary-other",
             covered_until_turn_id="turn-other",
-            content="另一条剧情线的摘要",
+            content="另一条会话分支的摘要",
             created_at=NOW,
         )
         branch = Branch(

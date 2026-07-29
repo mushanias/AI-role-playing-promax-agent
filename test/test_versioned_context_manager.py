@@ -20,7 +20,6 @@ from app.conversations.memory.context_planner import ContextPlanner
 from app.conversations.memory.versioned_context_manager import (
     VersionedContextManager,
 )
-from app.profile.storage import ProfileStorage
 
 
 NOW = datetime.now(timezone.utc)
@@ -45,9 +44,8 @@ class RecordingCompressionService:
         self,
         conversation_id,
         branch_id,
-        profile,
     ):
-        self.calls.append((conversation_id, branch_id, profile))
+        self.calls.append((conversation_id, branch_id))
         if not self.outcomes:
             raise AssertionError("压缩调用次数超过测试预期")
         return self.outcomes.pop(0)
@@ -112,7 +110,6 @@ def build_candidate(
     )
     candidate = planner.build_candidate(
         conversation=conversation,
-        profile={},
         branch_id=branch_id,
     )
     return ContextCandidate(
@@ -134,10 +131,6 @@ class VersionedContextManagerTests(unittest.IsolatedAsyncioTestCase):
         )
         self.conversation = build_conversation()
         await self.repository.create(self.conversation)
-        self.profile_storage = ProfileStorage(
-            f"{self.temporary_directory.name}/profile.json"
-        )
-        await self.profile_storage.save_profile({"世界观": "测试世界"})
         self.builder = ContextBuilder(
             FakeTokenCounter(),
         )
@@ -154,7 +147,6 @@ class VersionedContextManagerTests(unittest.IsolatedAsyncioTestCase):
         )
         return VersionedContextManager(
             repository=self.repository,
-            profile_storage=self.profile_storage,
             context_planner=planner,
             compression_service=compression_service,
             max_compression_passes=2,

@@ -119,7 +119,6 @@ class ContextPlannerTests(unittest.TestCase):
     def test_active_branch_path_excludes_other_story_branch(self) -> None:
         candidate = planner().build_candidate(
             conversation=branched_conversation(),
-            profile={},
         )
 
         self.assertEqual(
@@ -136,7 +135,6 @@ class ContextPlannerTests(unittest.TestCase):
     def test_explicit_branch_id_builds_alternative_path(self) -> None:
         candidate = planner().build_candidate(
             conversation=branched_conversation(),
-            profile={},
             branch_id="branch-alt",
         )
 
@@ -150,7 +148,6 @@ class ContextPlannerTests(unittest.TestCase):
             conversation=branched_conversation(
                 active_summary_id="summary-a"
             ),
-            profile={"世界观": "测试世界"},
         )
 
         self.assertEqual(candidate.plan.summary.summary_id, "summary-a")
@@ -159,13 +156,11 @@ class ContextPlannerTests(unittest.TestCase):
             ["turn-2", "turn-3"],
         )
         self.assertEqual(candidate.messages[0]["role"], "system")
-        self.assertIn("【世界观】\n测试世界", candidate.messages[0]["content"])
         self.assertIn("【历史摘要】\n第一轮历史摘要", candidate.messages[0]["content"])
 
     def test_pending_turn_is_last_message_not_raw_turn(self) -> None:
         candidate = planner().build_candidate(
             conversation=branched_conversation(pending=True),
-            profile={},
         )
 
         self.assertNotIn(
@@ -185,11 +180,9 @@ class ContextPlannerTests(unittest.TestCase):
         conversation = branched_conversation()
         small_candidate = planner(high_watermark=1000).build_candidate(
             conversation=conversation,
-            profile={},
         )
         large_candidate = planner(high_watermark=10).build_candidate(
             conversation=conversation,
-            profile={},
         )
 
         self.assertFalse(small_candidate.needs_compression)
@@ -199,7 +192,6 @@ class ContextPlannerTests(unittest.TestCase):
     def test_builder_preserves_turn_message_order(self) -> None:
         candidate = planner().build_candidate(
             conversation=branched_conversation(),
-            profile={},
         )
 
         self.assertEqual(

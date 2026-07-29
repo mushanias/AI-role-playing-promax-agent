@@ -38,7 +38,6 @@ class CompressionBatchPlanner:
     def plan(
         self,
         candidate: ContextCandidate,
-        profile: Dict[str, str],
     ) -> Optional[VersionedCompressionPlan]:
         """返回可达到低水位的最佳完整 Turn 压缩计划。"""
         if not candidate.needs_compression:
@@ -57,7 +56,6 @@ class CompressionBatchPlanner:
             raw_turns_to_keep = raw_turns[cutoff:]
             fixed_tokens = self._count_fixed_result_tokens(
                 candidate=candidate,
-                profile=profile,
                 raw_turns_to_keep=raw_turns_to_keep,
             )
             summary_token_budget = (
@@ -118,7 +116,6 @@ class CompressionBatchPlanner:
     def _count_fixed_result_tokens(
         self,
         candidate: ContextCandidate,
-        profile: Dict[str, str],
         raw_turns_to_keep: Tuple[Turn, ...],
     ) -> int:
         plan_without_summary = ContextPlan(
@@ -129,7 +126,6 @@ class CompressionBatchPlanner:
             pending_turn=candidate.plan.pending_turn,
         )
         return self.context_builder.build_from_plan(
-            profile=profile,
             plan=plan_without_summary,
         ).estimated_tokens
 
@@ -146,7 +142,6 @@ class CompressionBatchPlanner:
             pending_turn=None,
         )
         return self.context_builder.build_from_plan(
-            profile={},
             plan=raw_only_plan,
         ).estimated_tokens
 
@@ -184,13 +179,11 @@ class VersionedContextCompressionService:
         self,
         conversation_id: str,
         branch_id: str,
-        profile: Dict[str, str],
     ) -> VersionedCompressionOutcome:
         """同步执行至多一次追加式压缩。"""
         conversation = await self.repository.load(conversation_id)
         candidate = self.context_planner.build_candidate(
             conversation=conversation,
-            profile=profile,
             branch_id=branch_id,
         )
         if not candidate.needs_compression:
@@ -202,7 +195,7 @@ class VersionedContextCompressionService:
                 warning=None,
             )
 
-        plan = self.batch_planner.plan(candidate, profile)
+        plan = self.batch_planner.plan(candidate)
         if plan is None:
             return VersionedCompressionOutcome(
                 candidate=candidate,
@@ -247,7 +240,6 @@ class VersionedContextCompressionService:
             current = await self.repository.load(conversation_id)
             current_candidate = self.context_planner.build_candidate(
                 conversation=current,
-                profile=profile,
                 branch_id=branch_id,
             )
             return VersionedCompressionOutcome(
@@ -255,12 +247,11 @@ class VersionedContextCompressionService:
                 summary=None,
                 compressed=False,
                 stale=True,
-                warning="压缩期间剧情分支已变化，本次摘要结果已安全丢弃。",
+                warning="压缩期间会话分支已变化，本次摘要结果已安全丢弃。",
             )
 
         updated_candidate = self.context_planner.build_candidate(
             conversation=updated,
-            profile=profile,
             branch_id=branch_id,
         )
         return VersionedCompressionOutcome(

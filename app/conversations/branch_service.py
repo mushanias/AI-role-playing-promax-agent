@@ -1,4 +1,4 @@
-"""剧情分支服务：创建、切换分支并查询同位置消息版本。"""
+"""会话分支服务：创建、切换分支并查询同位置消息版本。"""
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -32,7 +32,7 @@ class TurnVariant:
 
 
 class BranchService:
-    """处理剧情线创建、旧消息重写和版本切换。"""
+    """处理会话分支创建、旧消息重写和版本切换。"""
 
     def __init__(self, repository: ConversationRepository) -> None:
         self.repository = repository
@@ -62,7 +62,7 @@ class BranchService:
         source_branch_id: str,
         target_turn_id: str,
     ) -> Branch:
-        """从目标 Turn 之前创建一条新的活动剧情线。"""
+        """从目标 Turn 之前创建一条新的活动会话分支。"""
         new_branch_id = str(uuid4())
         created_at = datetime.now(timezone.utc)
 
@@ -171,7 +171,7 @@ class BranchService:
         conversation_id: str,
         branch_id: str,
     ) -> Branch:
-        """切换当前界面使用的剧情分支。"""
+        """切换当前界面使用的会话分支。"""
         def switch(conversation: Conversation) -> Conversation:
             self._get_branch(conversation, branch_id)
             conversation.active_branch_id = branch_id
@@ -187,7 +187,7 @@ class BranchService:
     ) -> Branch:
         branch = conversation.branches.get(branch_id)
         if branch is None:
-            raise BranchNotFoundError(f"剧情分支不存在：{branch_id}")
+            raise BranchNotFoundError(f"会话分支不存在：{branch_id}")
         return branch
 
     @staticmethod
@@ -245,7 +245,7 @@ class BranchService:
         ]
         if not candidates:
             raise InvalidBranchOperationError(
-                f"轮次 {turn_id} 没有可切换的剧情分支"
+                f"轮次 {turn_id} 没有可切换的会话分支"
             )
 
         return min(

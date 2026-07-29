@@ -24,7 +24,7 @@ class PlannedContextBuildResult:
 
 
 class ContextBuilder:
-    """根据全局设定和 ContextPlan 组装本轮候选消息。"""
+    """根据 ContextPlan 组装本轮候选消息。"""
 
     def __init__(
         self,
@@ -34,17 +34,13 @@ class ContextBuilder:
 
     def build_from_plan(
         self,
-        profile: Dict[str, str],
         plan: ContextPlan,
     ) -> PlannedContextBuildResult:
         """把语义化 Context 计划转换为最终 LLM messages。"""
         summary_content = (
             plan.summary.content if plan.summary is not None else ""
         )
-        system_content = self._join_system_content(
-            profile=profile,
-            summary=summary_content,
-        )
+        system_content = self._build_system_content(summary_content)
         messages: List[Dict[str, str]] = []
 
         if system_content:
@@ -80,17 +76,8 @@ class ContextBuilder:
         )
 
     @staticmethod
-    def _join_system_content(
-        profile: Dict[str, str],
-        summary: str,
-    ) -> str:
-        """按固定顺序组装全局设定与活动摘要。"""
-        parts = []
-
-        for key, value in profile.items():
-            parts.append(f"【{key}】\n{value}")
-
-        if summary:
-            parts.append(f"【历史摘要】\n{summary}")
-
-        return "\n\n".join(parts)
+    def _build_system_content(summary: str) -> str:
+        """把活动摘要组装为 system 内容。"""
+        if not summary:
+            return ""
+        return f"【历史摘要】\n{summary}"

@@ -1,4 +1,4 @@
-"""会话聚合领域模型：描述原始轮次、剧情分支与摘要版本。"""
+"""会话聚合领域模型：描述原始轮次、版本分支与摘要版本。"""
 
 from datetime import datetime
 from enum import Enum
@@ -80,7 +80,7 @@ class SummaryVersion(BaseModel):
 
 
 class Branch(BaseModel):
-    """一条剧情线的当前原文位置与活动摘要书签。"""
+    """一条会话分支的当前原文位置与活动摘要书签。"""
 
     model_config = ConfigDict(extra="forbid")
 

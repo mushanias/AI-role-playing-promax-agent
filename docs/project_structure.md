@@ -1,38 +1,36 @@
-# 项目结构重组交付文档
+# 通用会话内核结构
 
-## 模块名称：按业务功能组织的模块化单体
+## 模块职责
 
-### 📦 输出
+- `app/conversations/`：版本化会话、消息生命周期、分支与历史视图。
+- `app/conversations/memory/`：Context 规划、Token 水位、摘要版本和降级。
+- `app/llm/`：模型配置、统一客户端和连接测试。
+- `app/storage/`：与领域无关的 JSON 文件存储。
+- `app/core/`：配置、依赖装配、日志和错误映射。
+- `app/exceptions/`：应用层异常。
 
-- `app/main.py`：唯一 FastAPI 应用入口。
-- `app/conversations/`：会话聚合、剧情分支、消息发送、持久化与 HTTP 接口。
-- `app/conversations/memory/`：会话内部的 Context 规划、压缩和 Prompt。
-- `app/profile/`：独立生命周期的全局角色设定。
-- `app/llm/`：模型设置、连接测试、SDK 调用和 HTTP 接口。
-- `app/storage/json_file_store.py`：跨模块复用的底层 JSON 文件读写。
-- `app/core/`、`app/exceptions/`：全局组装、配置、日志和异常契约。
+## 依赖方向
 
-### 🧩 解决的问题
+```text
+HTTP routes
+→ ConversationService
+→ BranchService / VersionedChatService
+→ VersionedContextManager
+→ ContextPlanner / CompressionService
+→ ConversationRepository / LLMClient
+→ JsonFileStore
+```
 
-原结构按 `routes`、`schemas`、`models`、`services` 和 `storage`
-等技术类型横向分层，阅读一条会话业务链时需要频繁跨目录跳转。
-本模块按业务所有权重新组织文件，让 Conversation 聚合其 Memory
-能力，同时保留 Profile、LLM 和通用存储的独立生命周期。
+会话内核不依赖任何具体产品模块。未来产品模块可以调用会话内核，
+但会话内核不能反向导入产品级项目、资产或工作流。
 
-### ✅ 完成的功能
+## 持久化边界
 
-- [x] 保持全部 HTTP 路径、请求结构和响应结构不变。
-- [x] 保持领域模型、服务实现和 JSON 数据格式不变。
-- [x] 将会话相关代码聚合到 `app/conversations/`。
-- [x] 将 Context 与压缩代码放入 `app/conversations/memory/`。
-- [x] 将 Profile 与 LLM 分别聚合为独立业务模块。
-- [x] 统一 `app/main.py` 为唯一 FastAPI 入口。
-- [x] 更新应用、测试和当前文档中的导入路径。
+当前每个会话保存为：
 
-### ⚡ 暴露的函数/接口
+```text
+data/conversations/{conversation_id}.json
+```
 
-- FastAPI 应用：`app.main:app`
-- 会话 Router：`app.conversations.routes.router`
-- Profile Router：`app.profile.routes.router`
-- LLM Router：`app.llm.routes.router`
-- HTTP API 路径与重组前保持一致。
+运行时数据不进入 Git。具体产品需要的项目数据应使用独立目录和模型，
+不能作为全局设定注入所有会话。

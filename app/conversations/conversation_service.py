@@ -59,7 +59,7 @@ class ConversationService:
         branch = conversation.branches.get(selected_branch_id)
         if branch is None:
             raise BranchNotFoundError(
-                f"剧情分支不存在：{selected_branch_id}"
+                f"会话分支不存在：{selected_branch_id}"
             )
 
         completed_turns = self._collect_completed_path(
@@ -146,7 +146,7 @@ class ConversationService:
         conversation_id: str,
         branch_id: str,
     ) -> Branch:
-        """切换界面当前展示与后续发送使用的剧情分支。"""
+        """切换界面当前展示与后续发送使用的会话分支。"""
         return await self.branch_service.switch_branch(
             conversation_id=conversation_id,
             branch_id=branch_id,

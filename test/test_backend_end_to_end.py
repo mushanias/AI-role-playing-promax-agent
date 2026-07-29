@@ -17,7 +17,6 @@ from app.conversations.memory.versioned_context_manager import (
     VersionedContextManager,
 )
 from app.conversations.versioned_chat_service import VersionedChatService
-from app.profile.storage import ProfileStorage
 
 
 class CharacterTokenCounter:
@@ -56,10 +55,6 @@ async def build_backend(
     repository = ConversationRepository(
         f"{base_directory}/conversations"
     )
-    profile_storage = ProfileStorage(
-        f"{base_directory}/profile.json"
-    )
-    await profile_storage.save_profile({})
     llm_client = ScenarioLLMClient()
     context_builder = ContextBuilder(
         token_counter=CharacterTokenCounter(),
@@ -82,7 +77,6 @@ async def build_backend(
     )
     context_manager = VersionedContextManager(
         repository=repository,
-        profile_storage=profile_storage,
         context_planner=context_planner,
         compression_service=compression_service,
         max_compression_passes=3,

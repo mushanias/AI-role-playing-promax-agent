@@ -178,11 +178,10 @@ class VersionedCompressionTests(unittest.IsolatedAsyncioTestCase):
         )
         candidate = context_planner.build_candidate(
             conversation=conversation,
-            profile={},
             branch_id="branch-main",
         )
 
-        plan = batch_planner.plan(candidate, profile={})
+        plan = batch_planner.plan(candidate)
 
         self.assertIsNotNone(plan)
         self.assertEqual(
@@ -208,7 +207,6 @@ class VersionedCompressionTests(unittest.IsolatedAsyncioTestCase):
         outcome = await service.compress_if_needed(
             conversation_id="conversation-1",
             branch_id="branch-main",
-            profile={},
         )
         loaded = await self.repository.load("conversation-1")
 
@@ -251,7 +249,6 @@ class VersionedCompressionTests(unittest.IsolatedAsyncioTestCase):
         outcome = await service.compress_if_needed(
             conversation_id="conversation-1",
             branch_id="branch-main",
-            profile={},
         )
         loaded = await self.repository.load("conversation-1")
 
@@ -265,6 +262,8 @@ class VersionedCompressionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unavailable_compression_returns_warning(self) -> None:
         only_turn = completed_turn("turn-1", None, 1)
+        only_turn.user_content = "用" * 20
+        only_turn.assistant_content = "助" * 20
         branch = Branch(
             branch_id="branch-main",
             head_turn_id=only_turn.turn_id,
@@ -284,13 +283,12 @@ class VersionedCompressionTests(unittest.IsolatedAsyncioTestCase):
             high_watermark=30,
             low_watermark=20,
             recent_raw_target=5,
-            min_summary_budget=5,
+            min_summary_budget=25,
         )
 
         outcome = await service.compress_if_needed(
             conversation_id="conversation-1",
             branch_id="branch-main",
-            profile={"超长设定": "设" * 100},
         )
 
         self.assertFalse(outcome.compressed)

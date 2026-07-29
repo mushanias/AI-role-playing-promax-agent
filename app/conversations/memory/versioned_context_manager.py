@@ -10,7 +10,6 @@ from app.conversations.memory.context_plan import (
     ManagedContext,
 )
 from app.conversations.memory.context_planner import ContextPlanner
-from app.profile.storage import ProfileStorage
 
 
 class VersionedCompressionCoordinator(Protocol):
@@ -20,7 +19,6 @@ class VersionedCompressionCoordinator(Protocol):
         self,
         conversation_id: str,
         branch_id: str,
-        profile: Dict[str, str],
     ) -> VersionedCompressionOutcome:
         ...
 
@@ -31,7 +29,6 @@ class VersionedContextManager:
     def __init__(
         self,
         repository: ConversationRepository,
-        profile_storage: ProfileStorage,
         context_planner: ContextPlanner,
         compression_service: VersionedCompressionCoordinator,
         max_compression_passes: int,
@@ -40,7 +37,6 @@ class VersionedContextManager:
             raise ValueError("最大压缩次数必须大于 0")
 
         self.repository = repository
-        self.profile_storage = profile_storage
         self.context_planner = context_planner
         self.compression_service = compression_service
         self.max_compression_passes = max_compression_passes
@@ -51,11 +47,9 @@ class VersionedContextManager:
         branch_id: Optional[str] = None,
     ) -> ManagedContext:
         """同步压缩当前分支，并始终返回可继续处理的 Context。"""
-        profile = await self.profile_storage.load_profile()
         candidate = await self._build_candidate(
             conversation_id=conversation_id,
             branch_id=branch_id,
-            profile=profile,
         )
         selected_branch_id = candidate.plan.branch_id
         warnings = []
@@ -69,7 +63,6 @@ class VersionedContextManager:
                 await self.compression_service.compress_if_needed(
                     conversation_id=conversation_id,
                     branch_id=selected_branch_id,
-                    profile=profile,
                 )
             )
             compression_passes += 1
@@ -92,7 +85,7 @@ class VersionedContextManager:
                 degraded_messages,
                 degraded_estimated_tokens,
                 degradation_warning,
-            ) = self._build_degraded_payload(candidate, profile)
+            ) = self._build_degraded_payload(candidate)
             self._append_warning(warnings, degradation_warning)
 
         return ManagedContext(
@@ -107,12 +100,10 @@ class VersionedContextManager:
         self,
         conversation_id: str,
         branch_id: Optional[str],
-        profile: Dict[str, str],
     ) -> ContextCandidate:
         conversation = await self.repository.load(conversation_id)
         return self.context_planner.build_candidate(
             conversation=conversation,
-            profile=profile,
             branch_id=branch_id,
         )
 
@@ -130,15 +121,13 @@ class VersionedContextManager:
     def _build_degraded_payload(
         self,
         candidate: ContextCandidate,
-        profile: Dict[str, str],
     ) -> tuple[tuple[Dict[str, str], ...], int, str]:
-        """只缩减本次发送副本，不修改原始 Turn、摘要或全局设定。"""
+        """只缩减本次发送副本，不修改原始 Turn 或摘要。"""
         plan = candidate.plan
         raw_turns = plan.raw_turns
 
         for drop_count in range(1, len(raw_turns) + 1):
             degraded = self.context_planner.context_builder.build_from_plan(
-                profile=profile,
                 plan=ContextPlan(
                     conversation_id=plan.conversation_id,
                     branch_id=plan.branch_id,
@@ -156,7 +145,6 @@ class VersionedContextManager:
 
         without_summary = (
             self.context_planner.context_builder.build_from_plan(
-                profile=profile,
                 plan=ContextPlan(
                     conversation_id=plan.conversation_id,
                     branch_id=plan.branch_id,
@@ -180,7 +168,7 @@ class VersionedContextManager:
         return (
             hard_limited[0],
             hard_limited[1],
-            "当前输入或全局设定极端过长，本轮发送副本已截短；原始数据仍完整保留。",
+            "当前输入极端过长，本轮发送副本已截短；原始数据仍完整保留。",
         )
 
     def _hard_limit_payload(
@@ -188,7 +176,7 @@ class VersionedContextManager:
         messages: tuple[Dict[str, str], ...],
         token_limit: int,
     ) -> tuple[tuple[Dict[str, str], ...], int]:
-        """优先保留当前用户输入，再用剩余空间保留系统设定。"""
+        """优先保留当前用户输入，再用剩余空间保留历史摘要。"""
         current_user = next(
             (
                 message

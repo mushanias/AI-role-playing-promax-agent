@@ -58,7 +58,6 @@ class InspectingContextManager:
         self.calls.append((conversation_id, branch_id))
         candidate = self.planner.build_candidate(
             conversation=conversation,
-            profile={},
             branch_id=branch_id,
         )
         return ManagedContext(
@@ -201,7 +200,7 @@ class VersionedChatServiceTests(unittest.IsolatedAsyncioTestCase):
 
         result = await service.send(
             conversation_id="conversation-1",
-            user_input="另一条剧情",
+            user_input="另一条分支消息",
             branch_id="branch-other",
         )
         loaded = await self.repository.load("conversation-1")

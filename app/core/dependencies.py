@@ -8,7 +8,6 @@ from app.core.config import (
     CONTEXT_SAFETY_MARGIN,
     CONVERSATIONS_PATH,
     MAX_COMPRESSION_PASSES,
-    PROFILE_PATH,
     RECENT_RAW_TOKEN_TARGET,
     SUMMARY_TOKEN_BUDGET,
 )
@@ -29,13 +28,6 @@ from app.conversations.memory.versioned_context_manager import (
 from app.conversations.versioned_chat_service import VersionedChatService
 from app.llm import llm_model
 from app.llm.client import LLMClient
-from app.profile.storage import ProfileStorage
-
-
-@lru_cache
-def get_profile_storage() -> ProfileStorage:
-    """提供 ProfileStorage 实例"""
-    return ProfileStorage(PROFILE_PATH)
 
 
 @lru_cache
@@ -54,7 +46,6 @@ def get_versioned_llm_client() -> LLMClient:
 def get_versioned_chat_service() -> VersionedChatService:
     """组装版本化 Context 与 Turn 生命周期。"""
     repository = get_conversation_repository()
-    profile_storage = get_profile_storage()
     llm_client = get_versioned_llm_client()
     context_builder = ContextBuilder(
         token_counter=TokenCounter(),
@@ -77,7 +68,6 @@ def get_versioned_chat_service() -> VersionedChatService:
     )
     context_manager = VersionedContextManager(
         repository=repository,
-        profile_storage=profile_storage,
         context_planner=context_planner,
         compression_service=compression_service,
         max_compression_passes=MAX_COMPRESSION_PASSES,
