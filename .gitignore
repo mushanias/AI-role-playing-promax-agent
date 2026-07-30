@@ -11,6 +11,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+node_modules/
 *.egg
 
 # 环境变量与密钥
