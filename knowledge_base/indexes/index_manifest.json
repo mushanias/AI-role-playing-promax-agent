@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "knowledge_base_version": "0.1.0",
+  "embedding_model": "BAAI/bge-small-zh-v1.5",
+  "embedding_dimension": 512,
+  "document_count": 0,
+  "chunk_count": 0,
+  "built_at": "2026-07-30T01:02:17.759450Z"
+}

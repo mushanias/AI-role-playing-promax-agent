@@ -15,6 +15,10 @@ PERFORMANCE_METRICS_PATH = os.getenv(
     "PERFORMANCE_METRICS_PATH",
     "data/performance.csv",
 )
+KNOWLEDGE_BASE_INDEX_PATH = os.getenv(
+    "KNOWLEDGE_BASE_INDEX_PATH",
+    "knowledge_base/indexes",
+)
 
 # Context 预算配置：质量高水位 40k，压缩软目标 25k。
 CONTEXT_SAFETY_MARGIN = int(os.getenv("CONTEXT_SAFETY_MARGIN", "200"))

@@ -7,6 +7,7 @@ from app.core.config import (
     CONTEXT_LOW_WATERMARK,
     CONTEXT_SAFETY_MARGIN,
     CONVERSATIONS_PATH,
+    KNOWLEDGE_BASE_INDEX_PATH,
     MAX_COMPRESSION_PASSES,
     PERFORMANCE_METRICS_PATH,
     RECENT_RAW_TOKEN_TARGET,
@@ -30,6 +31,14 @@ from app.conversations.versioned_chat_service import VersionedChatService
 from app.llm import llm_model
 from app.llm.client import LLMClient
 from app.performance.recorder import CsvPerformanceRecorder
+from app.retrieval.embedding import FastEmbedTextEmbedder
+from app.retrieval.contracts import KnowledgeRetriever
+from app.retrieval.hybrid_retriever import (
+    HybridKnowledgeRetriever,
+    UnavailableKnowledgeRetriever,
+    load_index_manifest,
+)
+from app.retrieval.manifest import IndexManifest
 
 
 @lru_cache
@@ -96,4 +105,25 @@ def get_conversation_service() -> ConversationService:
         repository=repository,
         branch_service=BranchService(repository),
         chat_service=get_versioned_chat_service(),
+    )
+
+
+@lru_cache
+def get_knowledge_index_manifest() -> IndexManifest | None:
+    """读取已部署公共知识库的版本与规模。"""
+    return load_index_manifest(KNOWLEDGE_BASE_INDEX_PATH)
+
+
+@lru_cache
+def get_knowledge_retriever() -> KnowledgeRetriever:
+    """组装只读混合检索器；索引缺失时返回显式空实现。"""
+    manifest = get_knowledge_index_manifest()
+    if manifest is None:
+        return UnavailableKnowledgeRetriever()
+    return HybridKnowledgeRetriever.from_directory(
+        KNOWLEDGE_BASE_INDEX_PATH,
+        embedder=FastEmbedTextEmbedder(
+            model_name=manifest.embedding_model,
+            dimension=manifest.embedding_dimension,
+        ),
     )
