@@ -49,6 +49,15 @@ export function findSourceBranch(
   const preferred = preferredBranchId
     ? conversation.branches[preferredBranchId]
     : undefined;
+  if (preferred?.head_turn_id === turnId) {
+    return preferred;
+  }
+  const exactHead = Object.values(conversation.branches).find(
+    (item) => item.head_turn_id === turnId,
+  );
+  if (exactHead) {
+    return exactHead;
+  }
   if (
     preferred &&
     branchContainsTurn(conversation, preferred, turnId)
