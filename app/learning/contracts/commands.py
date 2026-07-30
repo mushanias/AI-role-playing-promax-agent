@@ -159,9 +159,10 @@ class ConversationCommand(BaseModel):
         if self.source_turn_id is None:
             raise ValueError("非根操作必须指定 source_turn_id")
 
+        if self.active_branch_id is None:
+            raise ValueError("非根操作必须指定 active_branch_id")
+
         if self.action == ConversationAction.APPEND_TURN:
-            if self.active_branch_id is None:
-                raise ValueError("普通续写必须指定 active_branch_id")
             if self.new_branch_id is not None or self.preferred_port is not None:
                 raise ValueError("普通续写不能包含新分支字段")
             return self

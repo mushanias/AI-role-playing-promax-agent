@@ -21,4 +21,7 @@ from app.exceptions.branch_errors import (
     InvalidBranchOperationError,
     TurnNotFoundError,
 )
-from app.exceptions.learning_errors import LearningGraphRuleError
+from app.exceptions.learning_errors import (
+    LearningContextError,
+    LearningGraphRuleError,
+)

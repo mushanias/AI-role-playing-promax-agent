@@ -10,6 +10,7 @@ from app.core.error_mapping import map_app_exception
 from app.core.logger import setup_logging
 from app.exceptions import BaseAppException
 from app.llm.routes import router as llm_router
+from app.learning.routes import router as learning_router
 from app.performance.routes import router as performance_router
 from app.retrieval.routes import router as retrieval_router
 
@@ -24,6 +25,7 @@ app = FastAPI(
 
 app.include_router(conversations_router)
 app.include_router(llm_router)
+app.include_router(learning_router)
 app.include_router(performance_router)
 app.include_router(retrieval_router)
 

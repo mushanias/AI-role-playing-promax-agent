@@ -50,6 +50,7 @@ class LearningGraphPolicy:
             return self._plan_fork(
                 conversation,
                 source_turn_id,
+                branch_id,
                 preferred_port,
             )
         raise LearningGraphRuleError(f"不支持的图操作：{action}")
@@ -101,8 +102,21 @@ class LearningGraphPolicy:
     def _plan_fork(
         conversation: LearningConversation,
         source_turn_id: str,
+        branch_id: str | None,
         preferred_port: NodePort | None,
     ) -> GraphPlacement:
+        if branch_id is None or branch_id not in conversation.branches:
+            raise LearningGraphRuleError("创建分支必须指定来源 Branch")
+        branch = conversation.branches[branch_id]
+        if (
+            branch.head_turn_id is None
+            or not conversation.is_ancestor(
+                source_turn_id,
+                branch.head_turn_id,
+            )
+        ):
+            raise LearningGraphRuleError("分叉点不在来源 Branch 路径上")
+
         source = conversation.turns[source_turn_id]
         if source.connection_kind == ConnectionKind.ROOT:
             raise LearningGraphRuleError("根节点不允许创建分支")

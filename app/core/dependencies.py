@@ -30,6 +30,15 @@ from app.conversations.memory.versioned_context_manager import (
 from app.conversations.versioned_chat_service import VersionedChatService
 from app.llm import llm_model
 from app.llm.client import LLMClient
+from app.llm.runtime_factory import RuntimeLLMFactory
+from app.learning.application.context_service import LearningContextService
+from app.learning.application.path_validator import ActivePathValidator
+from app.learning.application.snapshot_adapter import CompactGraphAdapter
+from app.learning.application.turn_orchestrator import (
+    LearningTurnOrchestrator,
+)
+from app.learning.domain.graph_policy import LearningGraphPolicy
+from app.learning.observability import LoggingLearningObserver
 from app.performance.recorder import CsvPerformanceRecorder
 from app.retrieval.embedding import FastEmbedTextEmbedder
 from app.retrieval.contracts import KnowledgeRetriever
@@ -126,4 +135,21 @@ def get_knowledge_retriever() -> KnowledgeRetriever:
             model_name=manifest.embedding_model,
             dimension=manifest.embedding_dimension,
         ),
+    )
+
+
+@lru_cache
+def get_learning_turn_orchestrator() -> LearningTurnOrchestrator:
+    """组装无状态学习问答的完整应用服务。"""
+    return LearningTurnOrchestrator(
+        graph_adapter=CompactGraphAdapter(),
+        graph_policy=LearningGraphPolicy(),
+        path_validator=ActivePathValidator(),
+        context_service=LearningContextService(
+            token_estimator=TokenCounter(),
+            safety_margin=CONTEXT_SAFETY_MARGIN,
+        ),
+        model_factory=RuntimeLLMFactory(),
+        knowledge_retriever=get_knowledge_retriever(),
+        observer=LoggingLearningObserver(),
     )
