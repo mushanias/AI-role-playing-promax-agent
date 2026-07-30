@@ -3,9 +3,11 @@
 import logging
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.conversations.routes import router as conversations_router
+from app.core.config import CORS_ALLOWED_ORIGINS
 from app.core.error_mapping import map_app_exception
 from app.core.logger import setup_logging
 from app.exceptions import BaseAppException
@@ -18,9 +20,17 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="版本化会话引擎",
-    description="支持会话分支、历史回退和上下文压缩的通用后端",
-    version="0.2.0",
+    title="学习路径 Agent API",
+    description="无状态学习问答、分支路径、公共知识库与厂商联网搜索后端",
+    version="0.3.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=list(CORS_ALLOWED_ORIGINS),
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(conversations_router)

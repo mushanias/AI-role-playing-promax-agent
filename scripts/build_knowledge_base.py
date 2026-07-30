@@ -1,6 +1,13 @@
 """构建随应用部署的公共固定知识库。"""
 
 import argparse
+import sys
+from pathlib import Path
+
+if __package__ in (None, ""):
+    project_root = str(Path(__file__).resolve().parents[1])
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
 
 from app.retrieval.builder import KnowledgeBaseBuilder
 from app.retrieval.embedding import FastEmbedTextEmbedder

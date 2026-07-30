@@ -19,6 +19,14 @@ KNOWLEDGE_BASE_INDEX_PATH = os.getenv(
     "KNOWLEDGE_BASE_INDEX_PATH",
     "knowledge_base/indexes",
 )
+CORS_ALLOWED_ORIGINS = tuple(
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ALLOWED_ORIGINS",
+        "http://127.0.0.1:5173,http://localhost:5173",
+    ).split(",")
+    if origin.strip()
+)
 
 # Context 预算配置：质量高水位 40k，压缩软目标 25k。
 CONTEXT_SAFETY_MARGIN = int(os.getenv("CONTEXT_SAFETY_MARGIN", "200"))
