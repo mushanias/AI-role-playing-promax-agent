@@ -32,6 +32,8 @@ async def list_llm_presets() -> LLMPresetListResponse:
                 models=list(setting["models"]),
                 default_model=setting["request_params"]["model"],
                 docs_url=setting["docs_url"],
+                supports_native_search=setting["supports_native_search"],
+                context_window=setting["context_window"],
             )
             for provider, setting in MODEL_SETTINGS.items()
         ],

@@ -18,6 +18,8 @@ class LLMProviderResponse(BaseModel):
     models: list[str]
     default_model: str
     docs_url: str
+    supports_native_search: bool = False
+    context_window: int = Field(gt=0)
 
 
 class LLMPresetListResponse(BaseModel):

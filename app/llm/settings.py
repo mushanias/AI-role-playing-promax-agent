@@ -23,6 +23,8 @@ MODEL_SETTINGS: dict[str, LLMModel] = {
         "sdk": "openai_chat",
         "models": ("deepseek-v4-flash", "deepseek-v4-pro"),
         "docs_url": "https://api-docs.deepseek.com/",
+        "supports_native_search": False,
+        "context_window": 128000,
         "client_params": {
             "base_url": "https://api.deepseek.com",
         },
@@ -36,6 +38,8 @@ MODEL_SETTINGS: dict[str, LLMModel] = {
         "sdk": "openai_responses",
         "models": ("gpt-5.6", "gpt-5.6-terra", "gpt-5.6-luna"),
         "docs_url": "https://developers.openai.com/api/docs/models/all",
+        "supports_native_search": True,
+        "context_window": 128000,
         "client_params": {
             "base_url": "https://api.openai.com/v1",
         },
@@ -55,6 +59,8 @@ MODEL_SETTINGS: dict[str, LLMModel] = {
         "docs_url": (
             "https://platform.claude.com/docs/en/about-claude/models/overview"
         ),
+        "supports_native_search": True,
+        "context_window": 200000,
         "client_params": {
             "base_url": "https://api.anthropic.com",
         },
@@ -68,6 +74,8 @@ MODEL_SETTINGS: dict[str, LLMModel] = {
         "sdk": "openai_responses",
         "models": ("grok-4.5",),
         "docs_url": "https://docs.x.ai/developers/models",
+        "supports_native_search": True,
+        "context_window": 131072,
         "client_params": {
             "base_url": "https://api.x.ai/v1",
         },
@@ -81,6 +89,8 @@ MODEL_SETTINGS: dict[str, LLMModel] = {
         "sdk": "openai_chat",
         "models": ("glm-5.2", "glm-4.7"),
         "docs_url": "https://docs.bigmodel.cn/cn/guide/models/text/glm-5",
+        "supports_native_search": True,
+        "context_window": 128000,
         "client_params": {
             "base_url": "https://open.bigmodel.cn/api/paas/v4",
         },
@@ -96,6 +106,8 @@ MODEL_SETTINGS: dict[str, LLMModel] = {
         "docs_url": (
             "https://platform.minimaxi.com/docs/api-reference/text-chat-anthropic"
         ),
+        "supports_native_search": False,
+        "context_window": 200000,
         "client_params": {
             "base_url": "https://api.minimaxi.com/anthropic",
         },
