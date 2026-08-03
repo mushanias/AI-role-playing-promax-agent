@@ -5,12 +5,14 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
+from app.auth import require_local_user
 from app.core.dependencies import get_versioned_llm_client
 from app.main import app
 
 
 class LLMRouteTests(unittest.TestCase):
     def setUp(self) -> None:
+        app.dependency_overrides[require_local_user] = lambda: "123456"
         self.client = TestClient(app)
 
     def tearDown(self) -> None:

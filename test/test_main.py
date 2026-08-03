@@ -47,6 +47,10 @@ class MainApplicationTests(unittest.TestCase):
             response.headers["access-control-allow-origin"],
             "http://127.0.0.1:5173",
         )
+        self.assertEqual(
+            response.headers["access-control-allow-credentials"],
+            "true",
+        )
         self.assertIn(
             "DELETE",
             response.headers["access-control-allow-methods"],

@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends
 
+from app.auth import require_local_user
 from app.core.dependencies import get_versioned_llm_client
 from app.llm import (
     DEFAULT_LLM_MODEL,
@@ -21,7 +22,11 @@ from app.llm.schemas import (
     LLMProviderResponse,
 )
 
-router = APIRouter(prefix="/llm", tags=["llm"])
+router = APIRouter(
+    prefix="/llm",
+    tags=["llm"],
+    dependencies=[Depends(require_local_user)],
+)
 
 
 @router.get("/presets", response_model=LLMPresetListResponse)

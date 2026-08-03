@@ -94,6 +94,9 @@ CONTEXT_SAFETY_MARGIN=200
 ## HTTP 接口
 
 ```text
+POST /auth/login
+GET  /auth/session
+POST /auth/logout
 POST /conversations
 DELETE /conversations/{conversation_id}
 GET  /conversations/{conversation_id}/history
@@ -103,6 +106,8 @@ GET  /conversations/{conversation_id}/turns/{turn_id}/variants
 POST /conversations/{conversation_id}/branches/{branch_id}/activate
 GET  /conversations
 ```
+
+`/conversations`、`/llm` 和 `/performance` 接口需要本地登录。认证使用 HttpOnly Cookie，Session 保存在后端内存中，重启后端后需要重新登录。
 
 LLM 配置、连接测试和运行时模型切换接口位于 `/llm`。前端默认连接 `http://127.0.0.1:8000`，可通过 `frontend/.env` 中的 `VITE_API_BASE_URL` 覆盖。
 
@@ -132,6 +137,7 @@ http://127.0.0.1:8000/performance
 
 ```text
 app/
+├── auth/                单一本地账号、密码校验与 Session
 ├── conversations/       会话聚合、分支、历史与 HTTP 接口
 │   └── memory/          Context 规划、压缩和降级
 ├── core/                配置、依赖注入、日志与错误映射
@@ -175,6 +181,13 @@ npm run dev
 ```
 
 前端地址：`http://127.0.0.1:5173`
+
+本地登录账号：
+
+```text
+用户名：123456
+密码：123456
+```
 
 ### 运行测试（可选）
 

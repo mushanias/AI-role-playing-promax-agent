@@ -26,6 +26,19 @@ CORS_ALLOW_ORIGINS = tuple(
     if origin.strip()
 )
 
+# 单一本地账号认证配置。密码仅保存 scrypt 哈希。
+LOCAL_AUTH_USERNAME = os.getenv("LOCAL_AUTH_USERNAME", "").strip()
+LOCAL_AUTH_PASSWORD_HASH = os.getenv(
+    "LOCAL_AUTH_PASSWORD_HASH",
+    "",
+).strip()
+LOCAL_AUTH_SESSION_TTL_SECONDS = int(
+    os.getenv("LOCAL_AUTH_SESSION_TTL_SECONDS", "604800")
+)
+
+if LOCAL_AUTH_SESSION_TTL_SECONDS <= 0:
+    raise ValueError("LOCAL_AUTH_SESSION_TTL_SECONDS 必须大于 0")
+
 # Context 预算配置：质量高水位 40k，压缩软目标 25k。
 CONTEXT_SAFETY_MARGIN = int(os.getenv("CONTEXT_SAFETY_MARGIN", "200"))
 

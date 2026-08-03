@@ -6,6 +6,7 @@ from typing import Dict, List
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
 
+from app.auth import require_local_user
 from app.core.dependencies import get_performance_recorder
 from app.performance.recorder import (
     CsvPerformanceRecorder,
@@ -13,7 +14,11 @@ from app.performance.recorder import (
 )
 
 
-router = APIRouter(prefix="/performance", tags=["performance"])
+router = APIRouter(
+    prefix="/performance",
+    tags=["performance"],
+    dependencies=[Depends(require_local_user)],
+)
 _DASHBOARD_PATH = Path(__file__).with_name("dashboard.html")
 
 

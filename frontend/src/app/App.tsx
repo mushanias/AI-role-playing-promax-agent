@@ -1,6 +1,9 @@
 import { useMemo, useState } from "react";
 
 import { AppShell } from "./layout/AppShell";
+import { LoginPage } from "../features/auth/components/LoginPage";
+import { useAuthController } from "../features/auth/hooks/useAuthController";
+import { HttpAuthGateway } from "../features/auth/services/HttpAuthGateway";
 import { ChatPage } from "../features/chat/components/ChatPage";
 import { useConversationController } from "../features/chat/hooks/useConversationController";
 import { HttpConversationGateway } from "../features/chat/services/HttpConversationGateway";
@@ -16,6 +19,32 @@ import { useBackendConnection } from "../shared/api/useBackendConnection";
 const PINNED_CONVERSATIONS_KEY = "versioned-chat.pinned-conversations";
 
 export default function App() {
+  const authGateway = useMemo(() => new HttpAuthGateway(), []);
+  const auth = useAuthController(authGateway);
+
+  if (auth.status !== "authenticated" || auth.username === null) {
+    return (
+      <LoginPage
+        checking={auth.status === "checking"}
+        submitting={auth.isSubmitting}
+        errorMessage={auth.errorMessage}
+        onLogin={auth.login}
+      />
+    );
+  }
+
+  return <AuthenticatedApp accountName={auth.username} onLogout={auth.logout} />;
+}
+
+interface AuthenticatedAppProps {
+  accountName: string;
+  onLogout(): Promise<void>;
+}
+
+function AuthenticatedApp({
+  accountName,
+  onLogout,
+}: AuthenticatedAppProps) {
   const conversationGateway = useMemo(
     () => new HttpConversationGateway(),
     [],
@@ -68,6 +97,7 @@ export default function App() {
           modelBusy={llmController.isUpdating}
           modelStatusMessage={llmController.statusMessage}
           disabled={controller.isSubmitting || controller.isLoading}
+          accountName={accountName}
           onClose={() => setSidebarOpen(false)}
           onNewConversation={() => {
             void controller.startNewConversation();
@@ -93,6 +123,7 @@ export default function App() {
           onRestoreConversation={controller.restoreConversation}
           onSelectModel={llmController.selectModel}
           onConnectApiKey={llmController.connectApiKey}
+          onLogout={onLogout}
         />
       }
     >

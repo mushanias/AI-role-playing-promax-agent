@@ -6,6 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.auth.routes import router as auth_router
 from app.conversations.routes import router as conversations_router
 from app.core.config import CORS_ALLOW_ORIGINS
 from app.core.error_mapping import map_app_exception
@@ -39,11 +40,12 @@ async def unexpected_exception_middleware(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(CORS_ALLOW_ORIGINS),
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type"],
 )
 
+app.include_router(auth_router)
 app.include_router(conversations_router)
 app.include_router(llm_router)
 app.include_router(performance_router)

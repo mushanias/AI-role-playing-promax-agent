@@ -1,5 +1,7 @@
 import { API_BASE_URL } from "../../config/runtime";
 
+export const AUTH_REQUIRED_EVENT = "versioned-chat:auth-required";
+
 interface BackendErrorPayload {
   error?: {
     code?: string;
@@ -44,6 +46,7 @@ export async function apiRequest<T>(
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...requestInit,
+      credentials: requestInit.credentials ?? "include",
       headers,
       signal: timeoutController?.signal ?? requestInit.signal,
     });
@@ -71,6 +74,9 @@ export async function apiRequest<T>(
     .catch(() => null)) as BackendErrorPayload | T | null;
 
   if (!response.ok) {
+    if (response.status === 401 && path !== "/auth/login") {
+      window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
+    }
     const errorPayload = payload as BackendErrorPayload | null;
     const validationMessage = Array.isArray(errorPayload?.detail)
       ? errorPayload.detail[0]?.msg

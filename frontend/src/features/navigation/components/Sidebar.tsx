@@ -4,11 +4,13 @@ import {
   Check,
   GitBranch,
   KeyRound,
+  LogOut,
   MessageSquarePlus,
   PanelLeftClose,
   Pin,
   RotateCcw,
   Trash2,
+  UserRound,
 } from "lucide-react";
 
 import { IconButton } from "../../../shared/ui/IconButton";
@@ -32,6 +34,7 @@ export interface SidebarProps {
   modelBusy?: boolean;
   modelStatusMessage?: string | null;
   disabled?: boolean;
+  accountName: string;
   onClose(): void;
   onNewConversation(): void;
   onSelectConversation(conversationId: string): void;
@@ -40,6 +43,7 @@ export interface SidebarProps {
   onRestoreConversation(conversationId: string): Promise<boolean>;
   onSelectModel(optionId: string): Promise<void>;
   onConnectApiKey(apiKey: string): Promise<boolean>;
+  onLogout(): Promise<void>;
 }
 
 export function Sidebar({
@@ -54,6 +58,7 @@ export function Sidebar({
   modelBusy = false,
   modelStatusMessage = null,
   disabled = false,
+  accountName,
   onClose,
   onNewConversation,
   onSelectConversation,
@@ -62,6 +67,7 @@ export function Sidebar({
   onRestoreConversation,
   onSelectModel,
   onConnectApiKey,
+  onLogout,
 }: SidebarProps) {
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [apiPanelOpen, setApiPanelOpen] = useState(false);
@@ -312,6 +318,23 @@ export function Sidebar({
             </span>
           ) : null}
         </button>
+
+        <div className={styles.accountRow}>
+          <span className={styles.accountIdentity}>
+            <UserRound size={15} />
+            <span>{accountName}</span>
+          </span>
+          <button
+            type="button"
+            className={styles.logoutButton}
+            aria-label="退出登录"
+            title="退出登录"
+            onClick={() => void onLogout()}
+          >
+            <LogOut size={15} />
+            <span>退出</span>
+          </button>
+        </div>
 
         <div className={styles.sidebarFooter} role="status" aria-live="polite">
           <span className={styles.localDot} data-status={backendStatus} />

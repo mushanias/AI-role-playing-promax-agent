@@ -4,6 +4,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
+from app.auth import require_local_user
 from app.core.dependencies import get_conversation_service
 from app.conversations.chat_turn import ChatTurnResult
 from app.conversations.conversation_service import ConversationService
@@ -24,7 +25,11 @@ from app.conversations.schemas import (
     TurnVariantsResponse,
 )
 
-router = APIRouter(prefix="/conversations", tags=["conversations"])
+router = APIRouter(
+    prefix="/conversations",
+    tags=["conversations"],
+    dependencies=[Depends(require_local_user)],
+)
 
 
 @router.get("", response_model=ConversationListResponse)
