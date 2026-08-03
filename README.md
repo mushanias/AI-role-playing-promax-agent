@@ -95,14 +95,18 @@ CONTEXT_SAFETY_MARGIN=200
 
 ```text
 POST /conversations
+DELETE /conversations/{conversation_id}
 GET  /conversations/{conversation_id}/history
 POST /conversations/{conversation_id}/turns
 POST /conversations/{conversation_id}/turns/{turn_id}/rewrite
 GET  /conversations/{conversation_id}/turns/{turn_id}/variants
 POST /conversations/{conversation_id}/branches/{branch_id}/activate
+GET  /conversations
 ```
 
-LLM 配置和连接测试接口位于 `/llm`。
+LLM 配置、连接测试和运行时模型切换接口位于 `/llm`。前端默认连接 `http://127.0.0.1:8000`，可通过 `frontend/.env` 中的 `VITE_API_BASE_URL` 覆盖。
+
+完成的历史 Turn 会通过 `response_duration_ms` 保存本次响应耗时。开发环境可用 `?preview=waiting`、`?preview=llm` 和 `?preview=network` 预览等待、模型异常和网络异常界面；这些参数不会触发真实模型请求。
 
 ## 性能面板
 
@@ -145,22 +149,39 @@ test_frontend.py         最小测试界面
 
 ## 运行
 
-安装依赖：
+需要分别启动后端和前端，建议打开两个 PowerShell 窗口。
+
+### 启动后端
+
+在项目根目录执行：
 
 ```powershell
 pip install -r requirements.txt
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-启动后端：
+后端地址：`http://127.0.0.1:8000`
+
+模型厂商、默认模型和 API Key 配置位于项目根目录的 `.env`。
+
+### 启动前端
+
+新开一个 PowerShell 窗口，在项目根目录执行：
 
 ```powershell
-uvicorn app.main:app --reload
+cd frontend
+npm install
+npm run dev
 ```
 
-运行测试：
+前端地址：`http://127.0.0.1:5173`
+
+### 运行测试（可选）
 
 ```powershell
 python -m unittest discover -s test -v
+cd frontend
+npm run build
 ```
 
 ## 扩展边界

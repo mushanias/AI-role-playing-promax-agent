@@ -29,6 +29,8 @@
 - `llm_model: dict`
 - `GET /llm/presets`
 - `POST /llm/connection-test`
+- `GET /llm/active`
+- `PUT /llm/active`
 
 ## 参数表结构
 
@@ -115,3 +117,19 @@ GET /llm/presets
 `sdk` 支持 `openai_chat`、`openai_responses` 和 `anthropic`。为兼容已有请求，自定义设置暂时也接受旧字段名 `adapter`。
 
 选择顺序只有一条规则：存在 `custom_preset` 就使用自定义设置，否则使用所选模型；没有选择时使用默认 MiniMax-M3。
+
+## 前端运行时切换
+
+前端先通过 `GET /llm/presets` 获取后端实际配置的厂商和模型，不在浏览器中维护重复目录。
+
+```http
+GET /llm/active
+```
+
+只返回当前聊天使用的厂商、模型和连接状态，不返回 API Key。
+
+```http
+PUT /llm/active
+```
+
+请求体与连接测试一致。后端先执行连接测试；只有严格成功后，才会原子替换聊天与上下文压缩共用的运行时客户端。API Key 仅保存在当前后端进程内存中，重启后恢复 `.env` 默认配置。
