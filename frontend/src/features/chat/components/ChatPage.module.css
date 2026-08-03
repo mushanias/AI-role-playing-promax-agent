@@ -1,0 +1,124 @@
+.page {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: var(--layout-header-height) 1fr auto;
+  color: var(--color-text-primary);
+  background: var(--color-page);
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: rgb(255 255 255 / 92%);
+  backdrop-filter: blur(12px);
+}
+
+.headerContent {
+  height: var(--layout-header-height);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 var(--layout-page-gutter);
+}
+
+.titleGroup {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.main {
+  width: min(
+    100%,
+    calc(var(--layout-chat-width) + var(--layout-page-gutter) * 2)
+  );
+  margin: 0 auto;
+  padding: 36px var(--layout-page-gutter) 54px;
+}
+
+.turnList {
+  display: flex;
+  flex-direction: column;
+  gap: 42px;
+}
+
+.emptyConversation {
+  min-height: calc(100dvh - var(--layout-header-height) - 180px);
+  display: grid;
+  place-content: center;
+  text-align: center;
+}
+
+.emptyConversation h1 {
+  margin: 0;
+  font-size: clamp(23px, 4vw, 29px);
+  font-weight: 580;
+  letter-spacing: -0.035em;
+}
+
+.emptyConversation p {
+  margin: 10px 0 0;
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+}
+
+.loading {
+  min-height: 50vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.loading span {
+  width: 5px;
+  height: 5px;
+  background: var(--color-text-tertiary);
+  border-radius: 50%;
+}
+
+.composerDock {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  padding: 30px var(--layout-page-gutter) 14px;
+  background: linear-gradient(
+    to bottom,
+    rgb(255 255 255 / 0%),
+    var(--color-page) 25%
+  );
+}
+
+.composerContent {
+  width: min(100%, var(--layout-chat-width));
+  margin: 0 auto;
+}
+
+.disclaimer {
+  margin: 9px 0 0;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .main {
+    padding-top: 24px;
+  }
+
+  .turnList {
+    gap: 34px;
+  }
+
+  .composerDock {
+    padding-bottom: 9px;
+  }
+
+}

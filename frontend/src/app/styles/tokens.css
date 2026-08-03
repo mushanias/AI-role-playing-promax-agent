@@ -1,0 +1,47 @@
+:root {
+  color-scheme: light;
+
+  /* 基础字体系 */
+  --font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", "Microsoft YaHei", sans-serif;
+
+  /* 语义颜色：组件只引用这些变量，不依赖具体色值 */
+  --color-page: #ffffff;
+  --color-sidebar: #f6f7f9;
+  --color-sidebar-hover: #ebedf0;
+  --color-overlay: rgb(17 17 17 / 24%);
+  --color-surface-subtle: #f4f4f4;
+  --color-surface-hover: #eeeeee;
+  --color-surface-active: #e7e7e7;
+  --color-border-soft: #e8e8e8;
+  --color-border-strong: #d8d8d8;
+  --color-text-primary: #202020;
+  --color-text-secondary: #6b6b6b;
+  --color-text-tertiary: #8f8f8f;
+  --color-accent: #111111;
+  --color-accent-contrast: #ffffff;
+  --color-danger: #b42318;
+  --color-focus-ring: rgb(17 17 17 / 18%);
+
+  /* 尺寸与形状 */
+  --layout-chat-width: 760px;
+  --layout-sidebar-width: 284px;
+  --layout-page-gutter: 24px;
+  --layout-header-height: 56px;
+  --radius-small: 8px;
+  --radius-medium: 14px;
+  --radius-large: 24px;
+  --radius-round: 999px;
+
+  /* 阴影与动效 */
+  --shadow-composer: 0 0 0 1px rgb(0 0 0 / 6%),
+    0 5px 18px rgb(0 0 0 / 6%);
+  --transition-fast: 140ms ease;
+  --transition-normal: 200ms ease;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --layout-page-gutter: 16px;
+  }
+}

@@ -13,6 +13,14 @@ dist/
 build/
 *.egg
 
+# 前端依赖与构建缓存
+node_modules/
+*.tsbuildinfo
+.vite-dev*.log
+
+# 本地联调依赖目录
+.runtime-deps/
+
 # 环境变量与密钥
 .env
 .env.local

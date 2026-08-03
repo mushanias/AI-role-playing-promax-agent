@@ -1,0 +1,20 @@
+.navigator {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  height: 28px;
+}
+
+.arrow {
+  width: 26px;
+  height: 26px;
+}
+
+.counter {
+  min-width: 34px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  user-select: none;
+}

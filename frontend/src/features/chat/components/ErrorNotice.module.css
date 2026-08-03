@@ -1,0 +1,142 @@
+.failure {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.requestBubble {
+  max-width: min(78%, 620px);
+  align-self: flex-end;
+  padding: 10px 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--color-surface-subtle);
+  border-radius: 18px 18px 4px 18px;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.notice {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 11px;
+  padding: 15px 14px;
+  background: #fafafa;
+  border: 1px solid var(--color-border-soft);
+  border-radius: 16px;
+}
+
+.icon {
+  width: 29px;
+  height: 29px;
+  display: grid;
+  place-items: center;
+  color: #9b5b4f;
+  background: rgb(155 91 79 / 9%);
+  border-radius: 9px;
+}
+
+.notice[data-kind="network"] .icon {
+  color: #65758b;
+  background: rgb(101 117 139 / 10%);
+}
+
+.content {
+  min-width: 0;
+}
+
+.content h2 {
+  margin: 3px 0 0;
+  font-size: 14px;
+  font-weight: 560;
+}
+
+.content > p {
+  margin: 6px 24px 0 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.solutions {
+  margin-top: 12px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+.solutions > span {
+  color: var(--color-text-primary);
+  font-weight: 520;
+}
+
+.solutions ul {
+  display: grid;
+  gap: 4px;
+  margin: 6px 0 0;
+  padding-left: 18px;
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  gap: 7px;
+  margin-top: 13px;
+}
+
+.actions button {
+  min-height: 29px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--radius-round);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 480;
+}
+
+.retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: rgb(255 255 255 / 90%);
+  background: var(--color-accent);
+}
+
+.dismiss {
+  color: var(--color-text-secondary);
+  background: var(--color-surface-hover);
+}
+
+.close {
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--color-text-tertiary);
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.close:hover {
+  color: var(--color-text-primary);
+  background: var(--color-surface-hover);
+}
+
+@media (max-width: 640px) {
+  .requestBubble {
+    max-width: 88%;
+  }
+
+  .notice {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+  }
+}

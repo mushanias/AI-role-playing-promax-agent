@@ -1,0 +1,144 @@
+.turn {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.userSection {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.userBubble {
+  max-width: min(78%, 620px);
+  padding: 10px 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--color-surface-subtle);
+  border-radius: 18px 18px 4px 18px;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.userToolbar {
+  min-height: 31px;
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+}
+
+.messageActions,
+.assistantToolbar {
+  display: flex;
+  opacity: 0;
+  transform: translateY(-2px);
+  transition:
+    opacity var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.userSection:hover .messageActions,
+.userSection:focus-within .messageActions,
+.assistantSection:hover .assistantToolbar,
+.assistantSection:focus-within .assistantToolbar {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.assistantSection {
+  width: 100%;
+}
+
+.assistantContent {
+  max-width: 100%;
+  color: var(--color-text-primary);
+  font-size: 15px;
+  line-height: 1.78;
+}
+
+.assistantContent p {
+  margin: 0;
+}
+
+.assistantContent p + p {
+  margin-top: 14px;
+}
+
+.assistantToolbar {
+  min-height: 31px;
+}
+
+.assistantFooter {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.responseTime {
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+}
+
+.thinking {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.thinking span {
+  width: 5px;
+  height: 5px;
+  background: var(--color-text-tertiary);
+  border-radius: 50%;
+  animation: pulse 1.2s infinite ease-in-out;
+}
+
+.thinking span:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.thinking span:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+@keyframes pulse {
+  0%,
+  70%,
+  100% {
+    opacity: 0.28;
+    transform: translateY(0);
+  }
+
+  35% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@media (max-width: 640px) {
+  .turn {
+    gap: 22px;
+  }
+
+  .userBubble {
+    max-width: 88%;
+  }
+
+  .messageActions,
+  .assistantToolbar {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking span {
+    animation: none;
+  }
+}

@@ -1,0 +1,71 @@
+.pendingTurn {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.userSection {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.userBubble {
+  max-width: min(78%, 620px);
+  padding: 10px 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: var(--color-surface-subtle);
+  border-radius: 18px 18px 4px 18px;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.waiting {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.waiting time {
+  color: var(--color-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.waiting time::before {
+  margin-right: 8px;
+  content: "·";
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgb(32 32 32 / 13%);
+  border-top-color: var(--color-text-secondary);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 640px) {
+  .pendingTurn {
+    gap: 22px;
+  }
+
+  .userBubble {
+    max-width: 88%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 1400ms;
+  }
+}
