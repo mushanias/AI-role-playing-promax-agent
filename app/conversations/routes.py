@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.core.dependencies import get_conversation_service
 from app.conversations.chat_turn import ChatTurnResult
@@ -13,6 +13,10 @@ from app.conversations.schemas import (
     ChatTurnResponse,
     ConversationCreateResponse,
     ConversationHistoryResponse,
+    ConversationListResponse,
+    ConversationSummaryResponse,
+    DeletedConversationListResponse,
+    DeletedConversationSummaryResponse,
     HistoryTurnResponse,
     RewriteTurnRequest,
     SendTurnRequest,
@@ -21,6 +25,23 @@ from app.conversations.schemas import (
 )
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
+
+
+@router.get("", response_model=ConversationListResponse)
+async def list_conversations(
+    service: ConversationService = Depends(get_conversation_service),
+) -> ConversationListResponse:
+    summaries = await service.list_conversations()
+    return ConversationListResponse(
+        conversations=[
+            ConversationSummaryResponse(
+                conversation_id=summary.conversation_id,
+                title=summary.title,
+                updated_at=summary.updated_at,
+            )
+            for summary in summaries
+        ]
+    )
 
 
 @router.post(
@@ -36,6 +57,50 @@ async def create_conversation(
         conversation_id=conversation.conversation_id,
         active_branch_id=conversation.active_branch_id,
     )
+
+
+@router.get(
+    "/trash",
+    response_model=DeletedConversationListResponse,
+)
+async def list_deleted_conversations(
+    service: ConversationService = Depends(get_conversation_service),
+) -> DeletedConversationListResponse:
+    summaries = await service.list_deleted_conversations()
+    return DeletedConversationListResponse(
+        conversations=[
+            DeletedConversationSummaryResponse(
+                conversation_id=summary.conversation_id,
+                title=summary.title,
+                deleted_at=summary.deleted_at,
+            )
+            for summary in summaries
+        ]
+    )
+
+
+@router.post(
+    "/trash/{conversation_id}/restore",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def restore_conversation(
+    conversation_id: str,
+    service: ConversationService = Depends(get_conversation_service),
+) -> Response:
+    await service.restore_conversation(conversation_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete(
+    "/{conversation_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_conversation(
+    conversation_id: str,
+    service: ConversationService = Depends(get_conversation_service),
+) -> Response:
+    await service.delete_conversation(conversation_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(
@@ -160,6 +225,7 @@ def _history_response(
                 status=turn.status,
                 created_at=turn.created_at,
                 completed_at=turn.completed_at,
+                response_duration_ms=turn.response_duration_ms,
                 variant_index=turn.variant_index,
                 variant_count=turn.variant_count,
                 has_variants=(turn.variant_count > 1),

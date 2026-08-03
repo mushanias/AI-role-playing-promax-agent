@@ -171,6 +171,8 @@ class VersionedChatServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(turn.user_content, "第二问")
         self.assertEqual(turn.assistant_content, "第二答")
         self.assertEqual(turn.status, TurnStatus.COMPLETED)
+        self.assertIsNotNone(turn.response_duration_ms)
+        self.assertGreaterEqual(turn.response_duration_ms, 0)
         self.assertEqual(branch.head_turn_id, result.turn_id)
         self.assertIsNone(branch.pending_turn_id)
         self.assertEqual(result.warnings, ("上下文质量下降",))

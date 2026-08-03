@@ -13,6 +13,26 @@ class ConversationCreateResponse(BaseModel):
     active_branch_id: str
 
 
+class ConversationSummaryResponse(BaseModel):
+    conversation_id: str
+    title: str
+    updated_at: datetime
+
+
+class ConversationListResponse(BaseModel):
+    conversations: List[ConversationSummaryResponse]
+
+
+class DeletedConversationSummaryResponse(BaseModel):
+    conversation_id: str
+    title: str
+    deleted_at: datetime
+
+
+class DeletedConversationListResponse(BaseModel):
+    conversations: List[DeletedConversationSummaryResponse]
+
+
 class SendTurnRequest(BaseModel):
     message: str = Field(min_length=1)
     branch_id: Optional[str] = None
@@ -41,6 +61,7 @@ class HistoryTurnResponse(BaseModel):
     status: TurnStatus
     created_at: datetime
     completed_at: Optional[datetime]
+    response_duration_ms: Optional[int]
     variant_index: int
     variant_count: int
     has_variants: bool

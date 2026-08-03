@@ -16,6 +16,16 @@ PERFORMANCE_METRICS_PATH = os.getenv(
     "data/performance.csv",
 )
 
+# 浏览器前端与 API 分离运行时允许的来源。
+CORS_ALLOW_ORIGINS = tuple(
+    origin.strip()
+    for origin in os.getenv(
+        "CORS_ALLOW_ORIGINS",
+        "http://127.0.0.1:5173,http://localhost:5173",
+    ).split(",")
+    if origin.strip()
+)
+
 # Context 预算配置：质量高水位 40k，压缩软目标 25k。
 CONTEXT_SAFETY_MARGIN = int(os.getenv("CONTEXT_SAFETY_MARGIN", "200"))
 

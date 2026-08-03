@@ -54,6 +54,29 @@ class TurnModelTests(unittest.TestCase):
                 created_at=NOW,
             )
 
+    def test_pending_turn_cannot_have_response_duration(self) -> None:
+        with self.assertRaises(ValidationError):
+            Turn(
+                turn_id="turn-1",
+                user_content="用户输入",
+                status=TurnStatus.PENDING,
+                created_at=NOW,
+                response_duration_ms=100,
+            )
+
+    def test_completed_turn_accepts_response_duration(self) -> None:
+        turn = Turn(
+            turn_id="turn-1",
+            user_content="用户输入",
+            assistant_content="助手回复",
+            status=TurnStatus.COMPLETED,
+            created_at=NOW,
+            completed_at=NOW,
+            response_duration_ms=1250,
+        )
+
+        self.assertEqual(turn.response_duration_ms, 1250)
+
 
 class ConversationModelTests(unittest.TestCase):
     def test_valid_conversation_with_pending_turn(self) -> None:
@@ -140,6 +163,75 @@ class ConversationModelTests(unittest.TestCase):
             conversation.branches["branch-alt"].head_turn_id,
             "turn-alt",
         )
+
+    def test_branch_forked_from_root_can_own_new_root_turn(self) -> None:
+        original_turn = completed_turn("turn-original")
+        alternative_root = completed_turn("turn-alternative-root")
+        alternative_child = completed_turn(
+            "turn-alternative-child",
+            "turn-alternative-root",
+        )
+        original_branch = Branch(
+            branch_id="branch-original",
+            head_turn_id="turn-original",
+            created_at=NOW,
+        )
+        alternative_branch = Branch(
+            branch_id="branch-alternative",
+            parent_branch_id="branch-original",
+            forked_from_turn_id=None,
+            head_turn_id="turn-alternative-child",
+            created_at=NOW,
+        )
+
+        conversation = Conversation(
+            conversation_id="conversation-1",
+            active_branch_id="branch-alternative",
+            turns={
+                "turn-original": original_turn,
+                "turn-alternative-root": alternative_root,
+                "turn-alternative-child": alternative_child,
+            },
+            branches={
+                "branch-original": original_branch,
+                "branch-alternative": alternative_branch,
+            },
+        )
+
+        self.assertEqual(
+            conversation.branches["branch-alternative"].head_turn_id,
+            "turn-alternative-child",
+        )
+
+    def test_branch_forked_from_root_rejects_parent_history(self) -> None:
+        original_turn = completed_turn("turn-original")
+        child_turn = completed_turn("turn-child", "turn-original")
+        original_branch = Branch(
+            branch_id="branch-original",
+            head_turn_id="turn-child",
+            created_at=NOW,
+        )
+        invalid_branch = Branch(
+            branch_id="branch-invalid",
+            parent_branch_id="branch-original",
+            forked_from_turn_id=None,
+            head_turn_id="turn-child",
+            created_at=NOW,
+        )
+
+        with self.assertRaises(ValidationError):
+            Conversation(
+                conversation_id="conversation-1",
+                active_branch_id="branch-invalid",
+                turns={
+                    "turn-original": original_turn,
+                    "turn-child": child_turn,
+                },
+                branches={
+                    "branch-original": original_branch,
+                    "branch-invalid": invalid_branch,
+                },
+            )
 
     def test_rejects_summary_from_other_turn_branch(self) -> None:
         turn_1 = completed_turn("turn-1")

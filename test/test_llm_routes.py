@@ -5,12 +5,16 @@ from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
+from app.core.dependencies import get_versioned_llm_client
 from app.main import app
 
 
 class LLMRouteTests(unittest.TestCase):
     def setUp(self) -> None:
         self.client = TestClient(app)
+
+    def tearDown(self) -> None:
+        app.dependency_overrides.clear()
 
     def test_list_presets_returns_requested_providers(self) -> None:
         response = self.client.get("/llm/presets")
@@ -94,6 +98,77 @@ class LLMRouteTests(unittest.TestCase):
         model = test_connection.await_args.args[0]
         self.assertEqual(model["provider"], "优先使用的自定义模型")
         self.assertEqual(model["request_params"]["model"], "custom-model")
+
+    def test_get_active_model_never_exposes_api_key(self) -> None:
+        class FakeRuntimeClient:
+            @staticmethod
+            def describe_active_model():
+                return {
+                    "provider": "minimax",
+                    "model": "MiniMax-M3",
+                    "connected": True,
+                }
+
+        app.dependency_overrides[get_versioned_llm_client] = (
+            lambda: FakeRuntimeClient()
+        )
+
+        response = self.client.get("/llm/active")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {
+                "provider": "minimax",
+                "model": "MiniMax-M3",
+                "connected": True,
+            },
+        )
+        self.assertNotIn("api_key", response.text)
+
+    @patch(
+        "app.llm.routes.LLMConnectionService.test_connection",
+        new_callable=AsyncMock,
+        return_value=True,
+    )
+    def test_activate_model_reconfigures_runtime_client(
+        self,
+        test_connection,
+    ) -> None:
+        runtime_client = type(
+            "FakeRuntimeClient",
+            (),
+            {"reconfigure": AsyncMock()},
+        )()
+        app.dependency_overrides[get_versioned_llm_client] = (
+            lambda: runtime_client
+        )
+
+        response = self.client.put(
+            "/llm/active",
+            json={
+                "api_key": "secret",
+                "provider": "glm",
+                "model": "glm-5.2",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {
+                "success": True,
+                "message": "连接成功，模型已启用",
+                "provider": "glm",
+                "model": "glm-5.2",
+            },
+        )
+        activated_model = runtime_client.reconfigure.await_args.args[0]
+        self.assertEqual(activated_model["provider"], "glm")
+        self.assertEqual(
+            activated_model["request_params"]["model"],
+            "glm-5.2",
+        )
 
 
 if __name__ == "__main__":

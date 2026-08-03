@@ -81,11 +81,13 @@ class VersionedChatService:
             llm_started = perf_counter()
             reply = await self.llm_client.chat(list(context.messages))
             llm_ms = self._elapsed_ms(llm_started)
+            response_duration_ms = round(self._elapsed_ms(request_started))
             await self._complete_turn(
                 conversation_id=conversation_id,
                 branch_id=selected_branch_id,
                 turn_id=turn_id,
                 reply=reply,
+                response_duration_ms=response_duration_ms,
             )
         except asyncio.CancelledError:
             await asyncio.shield(
@@ -211,6 +213,7 @@ class VersionedChatService:
         branch_id: str,
         turn_id: str,
         reply: str,
+        response_duration_ms: int,
     ) -> None:
         completed_at = datetime.now(timezone.utc)
 
@@ -236,6 +239,7 @@ class VersionedChatService:
             turn.assistant_content = reply
             turn.status = TurnStatus.COMPLETED
             turn.completed_at = completed_at
+            turn.response_duration_ms = response_duration_ms
             branch.head_turn_id = turn_id
             branch.pending_turn_id = None
             return conversation

@@ -193,6 +193,49 @@ class BackendEndToEndTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotEqual(sent_payload[-1]["content"], original_input)
         self.assertEqual(stored_turn.user_content, original_input)
 
+    async def test_rewrite_first_turn_creates_working_root_branch(self) -> None:
+        service, repository, _ = await build_backend(
+            self.temporary_directory.name,
+            high_watermark=100,
+            low_watermark=80,
+            recent_raw_target=40,
+        )
+        conversation = await service.create_conversation()
+        original = await service.send_message(
+            conversation_id=conversation.conversation_id,
+            user_input="原始第一问",
+        )
+
+        rewritten = await service.rewrite_turn(
+            conversation_id=conversation.conversation_id,
+            target_turn_id=original.turn_id,
+            user_input="修改后的第一问",
+        )
+        continued = await service.send_message(
+            conversation_id=conversation.conversation_id,
+            user_input="新分支的第二问",
+        )
+        loaded = await repository.load(conversation.conversation_id)
+        history = await service.get_history(conversation.conversation_id)
+
+        self.assertNotEqual(rewritten.branch_id, original.branch_id)
+        self.assertEqual(loaded.active_branch_id, rewritten.branch_id)
+        self.assertIsNone(
+            loaded.turns[rewritten.turn_id].parent_turn_id
+        )
+        self.assertEqual(
+            loaded.branches[rewritten.branch_id].head_turn_id,
+            continued.turn_id,
+        )
+        self.assertEqual(
+            loaded.turns[continued.turn_id].parent_turn_id,
+            rewritten.turn_id,
+        )
+        self.assertEqual(
+            [turn.user_content for turn in history.turns],
+            ["修改后的第一问", "新分支的第二问"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

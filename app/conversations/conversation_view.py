@@ -18,6 +18,7 @@ class HistoryTurn:
     status: TurnStatus
     created_at: datetime
     completed_at: Optional[datetime]
+    response_duration_ms: Optional[int]
     variant_index: int
     variant_count: int
 
@@ -30,3 +31,21 @@ class ConversationHistory:
     branch_id: str
     active_branch_id: str
     turns: Tuple[HistoryTurn, ...]
+
+
+@dataclass(frozen=True)
+class ConversationSummary:
+    """侧边栏展示单个历史会话所需的摘要。"""
+
+    conversation_id: str
+    title: str
+    updated_at: datetime
+
+
+@dataclass(frozen=True)
+class DeletedConversationSummary:
+    """侧边栏回收站展示的已删除会话摘要。"""
+
+    conversation_id: str
+    title: str
+    deleted_at: datetime

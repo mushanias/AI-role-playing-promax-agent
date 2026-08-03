@@ -70,6 +70,38 @@ class ConversationRepositoryTests(unittest.IsolatedAsyncioTestCase):
                 empty_conversation("conversation-missing")
             )
 
+    async def test_delete_moves_conversation_to_trash(self) -> None:
+        await self.repository.create(empty_conversation("conversation-1"))
+        before_delete = datetime.now(timezone.utc)
+
+        await self.repository.delete("conversation-1")
+        deleted = await self.repository.list_deleted()
+
+        self.assertFalse(await self.repository.exists("conversation-1"))
+        self.assertEqual(len(deleted), 1)
+        self.assertEqual(
+            deleted[0].conversation.conversation_id,
+            "conversation-1",
+        )
+        self.assertGreaterEqual(deleted[0].deleted_at, before_delete)
+        with self.assertRaises(StorageNotFoundError):
+            await self.repository.delete("conversation-1")
+
+    async def test_restore_moves_conversation_back_from_trash(self) -> None:
+        original = empty_conversation("conversation-1")
+        await self.repository.create(original)
+        await self.repository.delete("conversation-1")
+
+        await self.repository.restore("conversation-1")
+        restored = await self.repository.load("conversation-1")
+
+        self.assertEqual(restored, original)
+        self.assertEqual(await self.repository.list_deleted(), [])
+
+    async def test_restore_rejects_missing_deleted_conversation(self) -> None:
+        with self.assertRaises(StorageNotFoundError):
+            await self.repository.restore("conversation-missing")
+
     async def test_load_rejects_corrupted_model_data(self) -> None:
         file_path = os.path.join(
             self.temporary_directory.name,

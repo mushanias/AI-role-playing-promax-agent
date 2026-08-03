@@ -27,6 +27,7 @@ class Turn(BaseModel):
     status: TurnStatus
     created_at: datetime
     completed_at: Optional[datetime] = None
+    response_duration_ms: Optional[int] = Field(default=None, ge=0)
     failure_message: Optional[str] = None
 
     @model_validator(mode="after")
@@ -42,6 +43,8 @@ class Turn(BaseModel):
                 raise ValueError("pending Turn 不能包含完成时间")
             if self.failure_message is not None:
                 raise ValueError("pending Turn 不能包含失败信息")
+            if self.response_duration_ms is not None:
+                raise ValueError("pending Turn 不能包含响应耗时")
 
         elif self.status == TurnStatus.COMPLETED:
             if self.assistant_content is None:
@@ -56,6 +59,8 @@ class Turn(BaseModel):
                 raise ValueError("failed Turn 必须包含失败信息")
             if self.completed_at is not None:
                 raise ValueError("failed Turn 不能包含完成时间")
+            if self.response_duration_ms is not None:
+                raise ValueError("failed Turn 不能包含响应耗时")
 
         return self
 
@@ -288,8 +293,20 @@ class Conversation(BaseModel):
             parent_branch = self.branches[branch.parent_branch_id]
 
             if branch.forked_from_turn_id is None:
-                if branch.head_turn_id is not None:
-                    raise ValueError("从根位置分叉的 Branch 不能直接拥有 HEAD")
+                if branch.head_turn_id is None:
+                    continue
+
+                root_turn_id = self._find_root_turn_id(branch.head_turn_id)
+                if (
+                    parent_branch.head_turn_id is not None
+                    and self._is_turn_ancestor(
+                        ancestor_turn_id=root_turn_id,
+                        descendant_turn_id=parent_branch.head_turn_id,
+                    )
+                ):
+                    raise ValueError(
+                        "从根位置分叉的 Branch 必须拥有独立的 Turn 历史"
+                    )
                 continue
 
             forked_turn = self.turns[branch.forked_from_turn_id]
@@ -321,6 +338,15 @@ class Conversation(BaseModel):
             current_turn_id = self.turns[current_turn_id].parent_turn_id
 
         return False
+
+    def _find_root_turn_id(self, turn_id: str) -> str:
+        """返回指定 Turn 所属历史链的根 Turn。"""
+        current_turn_id = turn_id
+
+        while self.turns[current_turn_id].parent_turn_id is not None:
+            current_turn_id = self.turns[current_turn_id].parent_turn_id
+
+        return current_turn_id
 
     @staticmethod
     def _reject_cycles(

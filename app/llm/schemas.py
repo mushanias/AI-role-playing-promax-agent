@@ -72,3 +72,14 @@ class LLMConnectionTestRequest(BaseModel):
 class LLMConnectionTestResponse(BaseModel):
     success: bool
     message: str
+
+
+class LLMActiveModelResponse(BaseModel):
+    provider: str
+    model: str
+    connected: bool
+
+
+class LLMActivationResponse(LLMConnectionTestResponse):
+    provider: str
+    model: str

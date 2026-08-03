@@ -1,5 +1,6 @@
 """把统一模型设置中的参数发送给对应 SDK。"""
 
+import asyncio
 import logging
 import time
 from typing import Dict, List
@@ -18,19 +19,42 @@ class LLMClient:
 
     def __init__(self, model: LLMModel) -> None:
         """按照 sdk 判断一次，其余参数直接来自模型设置字典。"""
+        self._configuration_lock = asyncio.Lock()
         self.model = model
-        if model["sdk"] == "anthropic":
-            self.client = anthropic.AsyncAnthropic(**model["client_params"])
-        else:
-            self.client = openai.AsyncOpenAI(**model["client_params"])
+        self.client = self._build_sdk_client(model)
         logger.debug(
             "LLM 客户端初始化完成，SDK: %s，模型: %s",
             model["sdk"],
             model["request_params"]["model"],
         )
 
+    async def reconfigure(self, model: LLMModel) -> None:
+        """原子替换后续聊天与压缩共用的模型客户端。"""
+        next_client = self._build_sdk_client(model)
+        async with self._configuration_lock:
+            self.model = model
+            self.client = next_client
+        logger.info(
+            "LLM 客户端已切换：厂商=%s，模型=%s",
+            model.get("provider", "unknown"),
+            model["request_params"]["model"],
+        )
+
+    def describe_active_model(self) -> dict[str, object]:
+        """返回可安全暴露的活动模型信息，不包含 API Key。"""
+        return {
+            "provider": self.model.get("provider", "unknown"),
+            "model": self.model["request_params"]["model"],
+            "connected": bool(self.model["client_params"].get("api_key")),
+        }
+
     async def chat(self, messages: List[Dict]) -> str:
         """调用当前模型并返回纯文本回复。"""
+        async with self._configuration_lock:
+            return await self._chat_with_active_model(messages)
+
+    async def _chat_with_active_model(self, messages: List[Dict]) -> str:
+        """在配置锁内使用一份稳定的模型设置完成请求。"""
         msg_count = len(messages)
         total_chars = sum(len(message["content"]) for message in messages)
         logger.debug("调用 LLM：%s 条消息，共 %s 字", msg_count, total_chars)
@@ -49,6 +73,12 @@ class LLMClient:
         elapsed = time.time() - start_time
         logger.info("LLM 回复完成：耗时 %.2fs，回复 %s 字", elapsed, len(reply))
         return reply
+
+    @staticmethod
+    def _build_sdk_client(model: LLMModel):
+        if model["sdk"] == "anthropic":
+            return anthropic.AsyncAnthropic(**model["client_params"])
+        return openai.AsyncOpenAI(**model["client_params"])
 
     async def _chat_openai(self, messages: List[Dict]) -> str:
         """调用 OpenAI 兼容接口。"""

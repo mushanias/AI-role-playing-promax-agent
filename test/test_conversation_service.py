@@ -92,6 +92,18 @@ class RecordingChatService:
         )
 
 
+class FailingChatService:
+    """模拟模型调用失败，用于验证重写不会留下空活动分支。"""
+
+    async def send(
+        self,
+        conversation_id,
+        user_input,
+        branch_id=None,
+    ):
+        raise RuntimeError("模拟模型失败")
+
+
 class ConversationServiceTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.temporary_directory = tempfile.TemporaryDirectory()
@@ -120,6 +132,33 @@ class ConversationServiceTests(unittest.IsolatedAsyncioTestCase):
             created.conversation_id
         ))
 
+    async def test_list_conversations_builds_sidebar_summary(self) -> None:
+        summaries = await self.service.list_conversations()
+
+        self.assertEqual(len(summaries), 1)
+        self.assertEqual(summaries[0].conversation_id, "conversation-1")
+        self.assertEqual(summaries[0].title, "第一轮")
+        self.assertEqual(
+            summaries[0].updated_at,
+            NOW + timedelta(seconds=4),
+        )
+
+    async def test_delete_and_restore_conversation(self) -> None:
+        await self.service.delete_conversation("conversation-1")
+        deleted = await self.service.list_deleted_conversations()
+
+        self.assertFalse(await self.repository.exists("conversation-1"))
+        self.assertEqual(len(deleted), 1)
+        self.assertEqual(deleted[0].title, "第一轮")
+
+        await self.service.restore_conversation("conversation-1")
+
+        self.assertTrue(await self.repository.exists("conversation-1"))
+        self.assertEqual(
+            await self.service.list_deleted_conversations(),
+            [],
+        )
+
     async def test_history_returns_original_path_and_variant_metadata(self) -> None:
         history = await self.service.get_history("conversation-1")
 
@@ -132,6 +171,7 @@ class ConversationServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(second_turn.user_content, "第二轮 A")
         self.assertEqual(second_turn.variant_count, 2)
         self.assertEqual(second_turn.variant_index, 0)
+        self.assertIsNone(second_turn.response_duration_ms)
 
     async def test_explicit_history_does_not_switch_active_branch(self) -> None:
         history = await self.service.get_history(
@@ -191,6 +231,23 @@ class ConversationServiceTests(unittest.IsolatedAsyncioTestCase):
                 new_branch.branch_id,
             )
         ])
+
+    async def test_failed_rewrite_restores_source_branch(self) -> None:
+        service = ConversationService(
+            repository=self.repository,
+            branch_service=BranchService(self.repository),
+            chat_service=FailingChatService(),
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "模拟模型失败"):
+            await service.rewrite_turn(
+                conversation_id="conversation-1",
+                target_turn_id="turn-1",
+                user_input="失败的改写",
+            )
+
+        loaded = await self.repository.load("conversation-1")
+        self.assertEqual(loaded.active_branch_id, "branch-main")
 
     async def test_variants_and_activation_change_active_history(self) -> None:
         variants = await self.service.list_turn_variants(
