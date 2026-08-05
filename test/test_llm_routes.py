@@ -108,7 +108,8 @@ class LLMRouteTests(unittest.TestCase):
                 return {
                     "provider": "minimax",
                     "model": "MiniMax-M3",
-                    "connected": True,
+                    "configured": True,
+                    "verified": False,
                 }
 
         app.dependency_overrides[get_versioned_llm_client] = (
@@ -123,7 +124,8 @@ class LLMRouteTests(unittest.TestCase):
             {
                 "provider": "minimax",
                 "model": "MiniMax-M3",
-                "connected": True,
+                "configured": True,
+                "verified": False,
             },
         )
         self.assertNotIn("api_key", response.text)
@@ -171,6 +173,120 @@ class LLMRouteTests(unittest.TestCase):
             activated_model["request_params"]["model"],
             "glm-5.2",
         )
+        self.assertTrue(
+            runtime_client.reconfigure.await_args.kwargs[
+                "connection_verified"
+            ]
+        )
+
+    @patch(
+        "app.llm.routes.LLMConnectionService.test_connection",
+        new_callable=AsyncMock,
+        return_value=True,
+    )
+    def test_verify_active_model_uses_backend_configuration(
+        self,
+        test_connection,
+    ) -> None:
+        model = {
+            "provider": "minimax",
+            "client_params": {"api_key": "local-secret"},
+            "request_params": {"model": "MiniMax-M3"},
+        }
+
+        class FakeRuntimeClient:
+            def __init__(self) -> None:
+                self.model = model
+                self.verified = False
+
+            async def set_connection_verified(self, verified: bool) -> None:
+                self.verified = verified
+
+            def describe_active_model(self):
+                return {
+                    "provider": "minimax",
+                    "model": "MiniMax-M3",
+                    "configured": True,
+                    "verified": self.verified,
+                }
+
+        runtime_client = FakeRuntimeClient()
+        app.dependency_overrides[get_versioned_llm_client] = (
+            lambda: runtime_client
+        )
+
+        response = self.client.post("/llm/active/verify")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["success"])
+        self.assertTrue(runtime_client.verified)
+        self.assertIs(test_connection.await_args.args[0], model)
+        self.assertNotIn("local-secret", response.text)
+
+    @patch(
+        "app.llm.routes.LLMConnectionService.test_connection",
+        new_callable=AsyncMock,
+        return_value=True,
+    )
+    def test_switch_model_reuses_current_provider_key(
+        self,
+        test_connection,
+    ) -> None:
+        runtime_client = type(
+            "FakeRuntimeClient",
+            (),
+            {
+                "model": {
+                    "provider": "minimax",
+                    "client_params": {"api_key": "local-secret"},
+                    "request_params": {"model": "MiniMax-M3"},
+                },
+                "reconfigure": AsyncMock(),
+            },
+        )()
+        app.dependency_overrides[get_versioned_llm_client] = (
+            lambda: runtime_client
+        )
+
+        response = self.client.put(
+            "/llm/active/model",
+            json={"provider": "minimax", "model": "MiniMax-M2.7"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["model"], "MiniMax-M2.7")
+        candidate = test_connection.await_args.args[0]
+        self.assertEqual(candidate["client_params"]["api_key"], "local-secret")
+        self.assertNotIn("local-secret", response.text)
+        runtime_client.reconfigure.assert_awaited_once()
+
+    def test_switch_model_rejects_other_provider_without_key(self) -> None:
+        runtime_client = type(
+            "FakeRuntimeClient",
+            (),
+            {
+                "model": {
+                    "provider": "minimax",
+                    "client_params": {"api_key": "local-secret"},
+                    "request_params": {"model": "MiniMax-M3"},
+                }
+            },
+        )()
+        app.dependency_overrides[get_versioned_llm_client] = (
+            lambda: runtime_client
+        )
+
+        response = self.client.put(
+            "/llm/active/model",
+            json={"provider": "glm", "model": "glm-5.2"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json()["error"]["code"],
+            "invalid_llm_configuration",
+        )
+        self.assertNotIn("local-secret", response.text)
 
 
 if __name__ == "__main__":

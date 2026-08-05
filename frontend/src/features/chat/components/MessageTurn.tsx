@@ -79,22 +79,26 @@ export function MessageTurn({
                     <Copy size={15} />
                   )}
                 </IconButton>
-                <IconButton
-                  label="编辑用户消息"
-                  disabled={disabled}
-                  onClick={onStartEdit}
-                >
-                  <Pencil size={15} />
-                </IconButton>
+                {turn.status === "completed" ? (
+                  <IconButton
+                    label="编辑用户消息"
+                    disabled={disabled}
+                    onClick={onStartEdit}
+                  >
+                    <Pencil size={15} />
+                  </IconButton>
+                ) : null}
               </div>
 
-              <BranchNavigator
-                current={turn.variantIndex}
-                total={turn.variantCount}
-                disabled={disabled}
-                onPrevious={() => onSelectVariant(-1)}
-                onNext={() => onSelectVariant(1)}
-              />
+              {turn.status === "completed" ? (
+                <BranchNavigator
+                  current={turn.variantIndex}
+                  total={turn.variantCount}
+                  disabled={disabled}
+                  onPrevious={() => onSelectVariant(-1)}
+                  onNext={() => onSelectVariant(1)}
+                />
+              ) : null}
             </div>
           </>
         )}
@@ -107,6 +111,11 @@ export function MessageTurn({
             <span />
             <span />
           </div>
+        ) : turn.status === "failed" ? (
+          <div className={styles.failedReply}>
+            <span>回答生成失败</span>
+            {turn.failureMessage ? <small>{turn.failureMessage}</small> : null}
+          </div>
         ) : (
           <div className={styles.assistantContent}>
             {turn.assistantContent
@@ -115,8 +124,12 @@ export function MessageTurn({
           </div>
         )}
 
-        {turn.assistantContent && turn.status === "completed" ? (
+        {turn.status === "completed" &&
+        (turn.assistantContent || turn.finishReason === "stopped") ? (
           <div className={styles.assistantFooter}>
+            {turn.finishReason === "stopped" ? (
+              <span className={styles.stoppedLabel}>已停止生成</span>
+            ) : null}
             {turn.responseDurationMs != null ? (
               <span className={styles.responseTime}>
                 生成用时 {formatDuration(turn.responseDurationMs)}

@@ -10,11 +10,3 @@ export interface DeletedConversationListItem {
   title: string;
   deletedLabel: string;
 }
-
-export interface ModelOption {
-  optionId: string;
-  providerId: string;
-  modelId: string;
-  label: string;
-  description: string;
-}

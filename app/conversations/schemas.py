@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-from app.conversations.conversation import TurnStatus
+from app.conversations.conversation import TurnFinishReason, TurnStatus
 
 
 class ConversationCreateResponse(BaseModel):
@@ -38,9 +38,17 @@ class SendTurnRequest(BaseModel):
     branch_id: Optional[str] = None
 
 
+class StreamSendTurnRequest(SendTurnRequest):
+    generation_id: str = Field(min_length=1, max_length=100)
+
+
 class RewriteTurnRequest(BaseModel):
     message: str = Field(min_length=1)
     source_branch_id: Optional[str] = None
+
+
+class StreamRewriteTurnRequest(RewriteTurnRequest):
+    generation_id: str = Field(min_length=1, max_length=100)
 
 
 class ChatTurnResponse(BaseModel):
@@ -62,6 +70,8 @@ class HistoryTurnResponse(BaseModel):
     created_at: datetime
     completed_at: Optional[datetime]
     response_duration_ms: Optional[int]
+    failure_message: Optional[str]
+    finish_reason: Optional[TurnFinishReason]
     variant_index: int
     variant_count: int
     has_variants: bool

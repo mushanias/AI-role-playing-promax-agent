@@ -69,6 +69,13 @@ class LLMConnectionTestRequest(BaseModel):
     custom_preset: Optional[CustomLLMPresetRequest] = None
 
 
+class LLMModelSelectionRequest(BaseModel):
+    """复用当前厂商凭据切换具体模型。"""
+
+    provider: str = Field(min_length=1, max_length=50)
+    model: str = Field(min_length=1, max_length=100)
+
+
 class LLMConnectionTestResponse(BaseModel):
     success: bool
     message: str
@@ -77,7 +84,8 @@ class LLMConnectionTestResponse(BaseModel):
 class LLMActiveModelResponse(BaseModel):
     provider: str
     model: str
-    connected: bool
+    configured: bool
+    verified: bool
 
 
 class LLMActivationResponse(LLMConnectionTestResponse):

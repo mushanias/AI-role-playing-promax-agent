@@ -84,6 +84,16 @@
   font-size: 11px;
 }
 
+.stoppedLabel {
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+}
+
+.stoppedLabel + .responseTime::before {
+  margin-right: 5px;
+  content: "·";
+}
+
 .thinking {
   height: 32px;
   display: flex;
@@ -105,6 +115,20 @@
 
 .thinking span:nth-child(3) {
   animation-delay: 240ms;
+}
+
+.failedReply {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.failedReply small {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  font-weight: 400;
 }
 
 @keyframes pulse {

@@ -4,6 +4,7 @@ import type {
   ActiveLLMModel,
   LLMActivationResult,
   LLMPresetCatalog,
+  SwitchLLMModelInput,
 } from "../model/types";
 import type { LLMGateway } from "./LLMGateway";
 
@@ -22,7 +23,8 @@ interface LLMPresetCatalogDto {
 interface ActiveLLMModelDto {
   provider: string;
   model: string;
-  connected: boolean;
+  configured: boolean;
+  verified: boolean;
 }
 
 interface LLMActivationDto {
@@ -58,7 +60,23 @@ export class HttpLLMGateway implements LLMGateway {
     return {
       providerId: active.provider,
       modelId: active.model,
-      connected: active.connected,
+      configured: active.configured,
+      verified: active.verified,
+    };
+  }
+
+  async verifyActiveModel(): Promise<LLMActivationResult> {
+    const result = await apiRequest<LLMActivationDto>("/llm/active/verify", {
+      method: "POST",
+    });
+
+    return {
+      success: result.success,
+      message: result.message,
+      providerId: result.provider,
+      modelId: result.model,
+      configured: true,
+      verified: result.success,
     };
   }
 
@@ -79,7 +97,29 @@ export class HttpLLMGateway implements LLMGateway {
       message: result.message,
       providerId: result.provider,
       modelId: result.model,
-      connected: result.success,
+      configured: true,
+      verified: result.success,
+    };
+  }
+
+  async switchActiveModel(
+    input: SwitchLLMModelInput,
+  ): Promise<LLMActivationResult> {
+    const result = await apiRequest<LLMActivationDto>("/llm/active/model", {
+      method: "PUT",
+      body: JSON.stringify({
+        provider: input.providerId,
+        model: input.modelId,
+      }),
+    });
+
+    return {
+      success: result.success,
+      message: result.message,
+      providerId: result.provider,
+      modelId: result.model,
+      configured: true,
+      verified: result.success,
     };
   }
 }

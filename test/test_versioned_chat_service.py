@@ -1,5 +1,6 @@
 """版本化 ChatService 与 Turn 生命周期测试。"""
 
+import asyncio
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -9,6 +10,7 @@ from app.conversations.conversation import (
     Branch,
     Conversation,
     Turn,
+    TurnFinishReason,
     TurnStatus,
 )
 from app.conversations.conversation_repository import ConversationRepository
@@ -68,9 +70,10 @@ class InspectingContextManager:
 
 
 class FakeLLMClient:
-    def __init__(self, reply="助手回复", error=None) -> None:
+    def __init__(self, reply="助手回复", error=None, chunks=None) -> None:
         self.reply = reply
         self.error = error
+        self.chunks = chunks or [reply]
         self.messages = None
 
     async def chat(self, messages):
@@ -78,6 +81,14 @@ class FakeLLMClient:
         if self.error is not None:
             raise self.error
         return self.reply
+
+    async def stream_chat(self, messages):
+        self.messages = messages
+        if self.error is not None:
+            raise self.error
+        for chunk in self.chunks:
+            await asyncio.sleep(0)
+            yield chunk
 
 
 class FakePerformanceSink:
@@ -257,6 +268,65 @@ class VersionedChatServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(
             loaded.branches["branch-main"].pending_turn_id
         )
+        self.assertEqual(
+            loaded.branches["branch-main"].failed_turn_ids,
+            [failed_turns[0].turn_id],
+        )
+
+    async def test_stream_persists_completed_reply(self) -> None:
+        service, _ = self.build_service(
+            FakeLLMClient(chunks=["流式", "回答"])
+        )
+        stop_event = asyncio.Event()
+
+        events = [
+            event
+            async for event in service.stream(
+                conversation_id="conversation-1",
+                user_input="流式问题",
+                generation_id="generation-1",
+                stop_event=stop_event,
+            )
+        ]
+        loaded = await self.repository.load("conversation-1")
+        turn_id = events[0].turn_id
+        turn = loaded.turns[turn_id]
+
+        self.assertEqual(
+            [event.type for event in events],
+            ["started", "delta", "delta", "completed"],
+        )
+        self.assertEqual(turn.assistant_content, "流式回答")
+        self.assertEqual(turn.finish_reason, TurnFinishReason.COMPLETED)
+        self.assertEqual(
+            loaded.branches["branch-main"].head_turn_id,
+            turn_id,
+        )
+
+    async def test_stop_stream_preserves_partial_reply(self) -> None:
+        service, _ = self.build_service(
+            FakeLLMClient(chunks=["已经生成", "不应保留"])
+        )
+        stop_event = asyncio.Event()
+        events = []
+
+        async for event in service.stream(
+            conversation_id="conversation-1",
+            user_input="请生成长回答",
+            generation_id="generation-stop",
+            stop_event=stop_event,
+        ):
+            events.append(event)
+            if event.type == "delta":
+                stop_event.set()
+
+        loaded = await self.repository.load("conversation-1")
+        turn = loaded.turns[events[0].turn_id]
+
+        self.assertEqual(events[-1].type, "stopped")
+        self.assertEqual(turn.assistant_content, "已经生成")
+        self.assertEqual(turn.finish_reason, TurnFinishReason.STOPPED)
+        self.assertEqual(turn.status, TurnStatus.COMPLETED)
 
     async def test_send_to_other_branch_does_not_move_active_branch(self) -> None:
         service, _ = self.build_service(FakeLLMClient())

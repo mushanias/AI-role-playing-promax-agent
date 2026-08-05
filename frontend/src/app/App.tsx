@@ -89,9 +89,9 @@ function AuthenticatedApp({
           conversations={conversations}
           deletedConversations={deletedConversations}
           activeConversationId={controller.view?.conversationId ?? null}
-          modelOptions={llmController.modelOptions}
-          selectedModelOptionId={llmController.selectedModelOptionId}
-          apiConnected={llmController.isConnected}
+          providers={llmController.providers}
+          activeProviderId={llmController.activeProviderId}
+          activeModelId={llmController.activeModelId}
           backendStatus={backendStatus}
           modelLoading={llmController.isLoading}
           modelBusy={llmController.isUpdating}
@@ -122,7 +122,8 @@ function AuthenticatedApp({
           onDeleteConversation={controller.deleteConversation}
           onRestoreConversation={controller.restoreConversation}
           onSelectModel={llmController.selectModel}
-          onConnectApiKey={llmController.connectApiKey}
+          onConnectProvider={llmController.connectProvider}
+          onVerifyLocalConfig={llmController.verifyLocalConfig}
           onLogout={onLogout}
         />
       }

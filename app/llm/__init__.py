@@ -5,7 +5,6 @@ from app.llm.settings import (
     DEFAULT_LLM_PROVIDER,
     MODEL_SETTINGS,
     LLMModel,
-    LLMSDK,
     build_llm_model,
     llm_model,
 )
@@ -15,7 +14,6 @@ __all__ = [
     "DEFAULT_LLM_PROVIDER",
     "MODEL_SETTINGS",
     "LLMModel",
-    "LLMSDK",
     "build_llm_model",
     "llm_model",
 ]

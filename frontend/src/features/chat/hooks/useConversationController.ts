@@ -1,9 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 
 import type {
   ConversationSummary,
   ConversationView,
   DeletedConversationSummary,
+  ChatStreamEvent,
   PendingRequest,
 } from "../model/types";
 import type { UserFacingError } from "../model/userFacingError";
@@ -16,6 +24,7 @@ export interface ConversationController {
   deletedConversationList: DeletedConversationSummary[];
   isLoading: boolean;
   isSubmitting: boolean;
+  isGenerating: boolean;
   error: UserFacingError | null;
   pendingRequest: PendingRequest | null;
   failedRequestContent: string | null;
@@ -31,6 +40,7 @@ export interface ConversationController {
   cancelEditing(): void;
   selectVariant(turnId: string, direction: -1 | 1): Promise<void>;
   sendMessage(content: string): Promise<void>;
+  stopGeneration(): Promise<void>;
   dismissError(): void;
 }
 
@@ -55,6 +65,11 @@ export function useConversationController(
   >(null);
   const [editingTurnId, setEditingTurnId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
+  const activeConversationIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    activeConversationIdRef.current = view?.conversationId ?? null;
+  }, [view]);
 
   useEffect(() => {
     let isActive = true;
@@ -94,6 +109,9 @@ export function useConversationController(
 
   const startEditing = useCallback(
     (turnId: string) => {
+      if (pendingRequest) {
+        return;
+      }
       const turn = view?.turns.find((candidate) => candidate.turnId === turnId);
 
       if (!turn) {
@@ -105,7 +123,7 @@ export function useConversationController(
       setError(null);
       setFailedRequestContent(null);
     },
-    [view],
+    [pendingRequest, view],
   );
 
   const startNewConversation = useCallback(async () => {
@@ -114,9 +132,9 @@ export function useConversationController(
     }
 
     gateway.clearCurrentConversation();
+    activeConversationIdRef.current = null;
     setView(null);
     setError(null);
-    setPendingRequest(null);
     setFailedRequestContent(null);
     setEditingTurnId(null);
     setEditingContent("");
@@ -134,6 +152,7 @@ export function useConversationController(
 
       try {
         const nextView = await gateway.openConversation(conversationId);
+        activeConversationIdRef.current = conversationId;
         setView(nextView);
         setEditingTurnId(null);
         setEditingContent("");
@@ -148,7 +167,10 @@ export function useConversationController(
 
   const deleteConversation = useCallback(
     async (conversationId: string): Promise<boolean> => {
-      if (isSubmitting) {
+      if (
+        isSubmitting ||
+        pendingRequest?.conversationId === conversationId
+      ) {
         return false;
       }
 
@@ -186,7 +208,7 @@ export function useConversationController(
         setIsSubmitting(false);
       }
     },
-    [gateway, isSubmitting, view],
+    [gateway, isSubmitting, pendingRequest, view],
   );
 
   const restoreConversation = useCallback(
@@ -223,35 +245,72 @@ export function useConversationController(
   }, []);
 
   const saveEditing = useCallback(async () => {
-    if (!view || !editingTurnId || !editingContent.trim()) {
+    if (
+      !view ||
+      !editingTurnId ||
+      !editingContent.trim() ||
+      pendingRequest
+    ) {
       return;
     }
 
-    setIsSubmitting(true);
+    const sourceView = view;
+    const targetIndex = view.turns.findIndex(
+      (turn) => turn.turnId === editingTurnId,
+    );
+    if (targetIndex < 0) {
+      return;
+    }
+
+    const generationId = crypto.randomUUID();
+    const normalizedContent = editingContent.trim();
     setError(null);
     setFailedRequestContent(null);
+    setEditingTurnId(null);
+    setEditingContent("");
+    setView({
+      ...view,
+      turns: view.turns.slice(0, targetIndex),
+    });
+    setPendingRequest({
+      conversationId: view.conversationId,
+      generationId,
+      content: normalizedContent,
+      assistantContent: "",
+      startedAt: Date.now(),
+      status: "starting",
+    });
 
     try {
-      const nextView = await gateway.rewriteUserMessage({
-        conversationId: view.conversationId,
-        sourceBranchId: view.activeBranchId,
-        turnId: editingTurnId,
-        content: editingContent,
-      });
-      setView(nextView);
+      const nextView = await gateway.streamRewriteUserMessage(
+        {
+          conversationId: view.conversationId,
+          sourceBranchId: view.activeBranchId,
+          turnId: editingTurnId,
+          content: normalizedContent,
+          generationId,
+        },
+        (event) => applyStreamEvent(event, generationId, setPendingRequest),
+      );
+      if (activeConversationIdRef.current === view.conversationId) {
+        setView(nextView);
+      }
       setConversationList(await gateway.listConversations());
-      setEditingTurnId(null);
-      setEditingContent("");
     } catch (reason: unknown) {
-      setError(toUserFacingError(reason));
+      if (activeConversationIdRef.current === view.conversationId) {
+        setView(sourceView);
+        setError(toUserFacingError(reason));
+      }
     } finally {
-      setIsSubmitting(false);
+      setPendingRequest((current) =>
+        current?.generationId === generationId ? null : current,
+      );
     }
-  }, [editingContent, editingTurnId, gateway, view]);
+  }, [editingContent, editingTurnId, gateway, pendingRequest, view]);
 
   const selectVariant = useCallback(
     async (turnId: string, direction: -1 | 1) => {
-      if (!view || isSubmitting) {
+      if (!view || isSubmitting || pendingRequest) {
         return;
       }
 
@@ -275,47 +334,93 @@ export function useConversationController(
         setIsSubmitting(false);
       }
     },
-    [gateway, isSubmitting, view],
+    [gateway, isSubmitting, pendingRequest, view],
   );
 
   const sendMessage = useCallback(
     async (content: string) => {
       const normalizedContent = content.trim();
 
-      if (!normalizedContent || isSubmitting) {
+      if (!normalizedContent || isSubmitting || pendingRequest) {
         return;
       }
 
-      setIsSubmitting(true);
       setError(null);
       setFailedRequestContent(null);
-      setPendingRequest({
-        content: normalizedContent,
-        startedAt: Date.now(),
-      });
 
+      let targetConversationId: string | null = null;
+      const generationId = crypto.randomUUID();
       try {
         const targetView = view ?? (await gateway.createConversation());
+        targetConversationId = targetView.conversationId;
         if (!view) {
+          activeConversationIdRef.current = targetView.conversationId;
           setView(targetView);
         }
-        const nextView = await gateway.sendMessage({
+        setPendingRequest({
           conversationId: targetView.conversationId,
-          branchId: targetView.activeBranchId,
+          generationId,
           content: normalizedContent,
+          assistantContent: "",
+          startedAt: Date.now(),
+          status: "starting",
         });
-        setView(nextView);
+        const nextView = await gateway.streamMessage(
+          {
+            conversationId: targetView.conversationId,
+            branchId: targetView.activeBranchId,
+            content: normalizedContent,
+            generationId,
+          },
+          (event) => applyStreamEvent(event, generationId, setPendingRequest),
+        );
+        if (
+          activeConversationIdRef.current === targetView.conversationId
+        ) {
+          setView(nextView);
+        }
         setConversationList(await gateway.listConversations());
       } catch (reason: unknown) {
-        setError(toUserFacingError(reason));
-        setFailedRequestContent(normalizedContent);
+        if (
+          targetConversationId !== null &&
+          activeConversationIdRef.current === targetConversationId
+        ) {
+          setError(toUserFacingError(reason));
+          setFailedRequestContent(normalizedContent);
+        }
       } finally {
-        setPendingRequest(null);
-        setIsSubmitting(false);
+        if (targetConversationId !== null) {
+          setPendingRequest((current) =>
+            current?.generationId === generationId ? null : current,
+          );
+        }
       }
     },
-    [gateway, isSubmitting, view],
+    [gateway, isSubmitting, pendingRequest, view],
   );
+
+  const stopGeneration = useCallback(async () => {
+    const currentGeneration = pendingRequest;
+    if (!currentGeneration || currentGeneration.status === "stopping") {
+      return;
+    }
+
+    setPendingRequest((current) =>
+      current?.generationId === currentGeneration.generationId
+        ? { ...current, status: "stopping" }
+        : current,
+    );
+    try {
+      await gateway.stopGeneration(currentGeneration.generationId);
+    } catch (reason: unknown) {
+      setError(toUserFacingError(reason));
+      setPendingRequest((current) =>
+        current?.generationId === currentGeneration.generationId
+          ? { ...current, status: "streaming" }
+          : current,
+      );
+    }
+  }, [gateway, pendingRequest]);
 
   return {
     view,
@@ -323,6 +428,7 @@ export function useConversationController(
     deletedConversationList,
     isLoading,
     isSubmitting,
+    isGenerating: pendingRequest !== null,
     error,
     pendingRequest,
     failedRequestContent,
@@ -338,9 +444,37 @@ export function useConversationController(
     cancelEditing,
     selectVariant,
     sendMessage,
+    stopGeneration,
     dismissError: () => {
       setError(null);
       setFailedRequestContent(null);
     },
   };
+}
+
+function applyStreamEvent(
+  event: ChatStreamEvent,
+  generationId: string,
+  setPendingRequest: Dispatch<SetStateAction<PendingRequest | null>>,
+): void {
+  if (event.generationId !== generationId) {
+    return;
+  }
+
+  setPendingRequest((current) => {
+    if (!current || current.generationId !== generationId) {
+      return current;
+    }
+    if (event.type === "started") {
+      return { ...current, status: "streaming" };
+    }
+    if (event.type === "delta" && event.content) {
+      return {
+        ...current,
+        status: "streaming",
+        assistantContent: current.assistantContent + event.content,
+      };
+    }
+    return current;
+  });
 }

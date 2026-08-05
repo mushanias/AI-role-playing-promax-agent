@@ -1,38 +1,48 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { ModelOption } from "../../navigation/model/types";
+import type {
+  ActiveLLMModel,
+  LLMActivationResult,
+  LLMProviderPreset,
+  LLMProviderState,
+} from "../model/types";
 import type { LLMGateway } from "../services/LLMGateway";
 
 export interface LLMController {
-  modelOptions: ModelOption[];
-  selectedModelOptionId: string;
-  isConnected: boolean;
+  providers: LLMProviderState[];
+  activeProviderId: string;
+  activeModelId: string;
   isLoading: boolean;
   isUpdating: boolean;
   statusMessage: string | null;
-  selectModel(optionId: string): Promise<void>;
-  connectApiKey(apiKey: string): Promise<boolean>;
+  selectModel(providerId: string, modelId: string): Promise<boolean>;
+  connectProvider(
+    providerId: string,
+    modelId: string,
+    apiKey: string,
+  ): Promise<boolean>;
+  verifyLocalConfig(): Promise<boolean>;
 }
 
 export function useLLMController(
   gateway: LLMGateway,
   backendConnected: boolean,
 ): LLMController {
-  const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
-  const [selectedModelOptionId, setSelectedModelOptionId] = useState("");
-  const [isConnected, setIsConnected] = useState(false);
+  const [providerPresets, setProviderPresets] = useState<LLMProviderPreset[]>(
+    [],
+  );
+  const [activeModel, setActiveModel] = useState<ActiveLLMModel | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const apiKeyRef = useRef<string | null>(null);
+  const apiKeysRef = useRef(new Map<string, string>());
 
   useEffect(() => {
     let isActive = true;
 
     if (!backendConnected) {
-      setModelOptions([]);
-      setSelectedModelOptionId("");
-      setIsConnected(false);
+      setProviderPresets([]);
+      setActiveModel(null);
       setIsLoading(false);
       setStatusMessage("本地后端未连接");
       return () => {
@@ -44,36 +54,13 @@ export function useLLMController(
     setStatusMessage(null);
 
     Promise.all([gateway.getPresets(), gateway.getActiveModel()])
-      .then(([catalog, activeModel]) => {
+      .then(([catalog, currentModel]) => {
         if (!isActive) {
           return;
         }
 
-        const options = catalog.providers.flatMap((provider) =>
-          provider.models.map((modelId) => ({
-            optionId: toOptionId(provider.providerId, modelId),
-            providerId: provider.providerId,
-            modelId,
-            label: modelId,
-            description: provider.name,
-          })),
-        );
-        const activeOptionId = toOptionId(
-          activeModel.providerId,
-          activeModel.modelId,
-        );
-        const defaultOptionId = toOptionId(
-          catalog.defaultProvider,
-          catalog.defaultModel,
-        );
-
-        setModelOptions(options);
-        setSelectedModelOptionId(
-          options.some((option) => option.optionId === activeOptionId)
-            ? activeOptionId
-            : defaultOptionId,
-        );
-        setIsConnected(activeModel.connected);
+        setProviderPresets(catalog.providers);
+        setActiveModel(currentModel);
         setStatusMessage(null);
       })
       .catch((error: unknown) => {
@@ -92,91 +79,153 @@ export function useLLMController(
     };
   }, [backendConnected, gateway]);
 
-  const activateSelection = useCallback(
-    async (optionId: string, apiKey: string): Promise<boolean> => {
-      const option = modelOptions.find(
-        (candidate) => candidate.optionId === optionId,
-      );
+  const providers = useMemo<LLMProviderState[]>(
+    () =>
+      providerPresets.map((provider) => {
+        const active = provider.providerId === activeModel?.providerId;
+        return {
+          ...provider,
+          active,
+          configured:
+            (active && Boolean(activeModel?.configured)) ||
+            apiKeysRef.current.has(provider.providerId),
+          verified: active && Boolean(activeModel?.verified),
+        };
+      }),
+    [activeModel, providerPresets],
+  );
 
-      if (!option) {
+  const applySuccessfulActivation = useCallback(
+    (result: LLMActivationResult) => {
+      setActiveModel({
+        providerId: result.providerId,
+        modelId: result.modelId,
+        configured: result.configured,
+        verified: result.verified,
+      });
+    },
+    [],
+  );
+
+  const selectModel = useCallback(
+    async (providerId: string, modelId: string): Promise<boolean> => {
+      const provider = providerPresets.find(
+        (candidate) => candidate.providerId === providerId,
+      );
+      if (!provider?.models.includes(modelId)) {
         setStatusMessage("所选模型不在后端模型目录中");
         return false;
       }
 
+      const canReuseBackendKey =
+        activeModel?.providerId === providerId && activeModel.configured;
+      const cachedApiKey = apiKeysRef.current.get(providerId);
+      if (!canReuseBackendKey && !cachedApiKey) {
+        setStatusMessage(`请先连接 ${provider.name} 的 API Key`);
+        return false;
+      }
+
       setIsUpdating(true);
-      setStatusMessage("正在测试连接…");
+      setStatusMessage("正在切换模型…");
 
       try {
-        const result = await gateway.activateModel({
-          apiKey,
-          providerId: option.providerId,
-          modelId: option.modelId,
-        });
-        setIsConnected(result.success);
+        const result = canReuseBackendKey
+          ? await gateway.switchActiveModel({ providerId, modelId })
+          : await gateway.activateModel({
+              apiKey: cachedApiKey ?? "",
+              providerId,
+              modelId,
+            });
+
         setStatusMessage(result.message);
+        if (result.success) {
+          applySuccessfulActivation(result);
+        }
         return result.success;
       } catch (error: unknown) {
-        setIsConnected(false);
         setStatusMessage(toErrorMessage(error));
         return false;
       } finally {
         setIsUpdating(false);
       }
     },
-    [gateway, modelOptions],
+    [activeModel, applySuccessfulActivation, gateway, providerPresets],
   );
 
-  const selectModel = useCallback(
-    async (optionId: string) => {
-      setSelectedModelOptionId(optionId);
-
-      if (!apiKeyRef.current) {
-        setIsConnected(false);
-        setStatusMessage("已选择模型，请连接对应的 API Key");
-        return;
-      }
-
-      await activateSelection(optionId, apiKeyRef.current);
-    },
-    [activateSelection],
-  );
-
-  const connectApiKey = useCallback(
-    async (apiKey: string): Promise<boolean> => {
+  const connectProvider = useCallback(
+    async (
+      providerId: string,
+      modelId: string,
+      apiKey: string,
+    ): Promise<boolean> => {
+      const provider = providerPresets.find(
+        (candidate) => candidate.providerId === providerId,
+      );
       const normalizedApiKey = apiKey.trim();
 
-      if (!normalizedApiKey || !selectedModelOptionId) {
+      if (!provider?.models.includes(modelId) || !normalizedApiKey) {
         return false;
       }
 
-      const success = await activateSelection(
-        selectedModelOptionId,
-        normalizedApiKey,
-      );
+      setIsUpdating(true);
+      setStatusMessage(`正在验证 ${provider.name}…`);
 
-      if (success) {
-        apiKeyRef.current = normalizedApiKey;
+      try {
+        const result = await gateway.activateModel({
+          apiKey: normalizedApiKey,
+          providerId,
+          modelId,
+        });
+        setStatusMessage(result.message);
+
+        if (result.success) {
+          apiKeysRef.current.set(providerId, normalizedApiKey);
+          applySuccessfulActivation(result);
+        }
+        return result.success;
+      } catch (error: unknown) {
+        setStatusMessage(toErrorMessage(error));
+        return false;
+      } finally {
+        setIsUpdating(false);
       }
-
-      return success;
     },
-    [activateSelection, selectedModelOptionId],
+    [applySuccessfulActivation, gateway, providerPresets],
   );
 
+  const verifyLocalConfig = useCallback(async (): Promise<boolean> => {
+    setIsUpdating(true);
+    setStatusMessage("正在验证后端本地配置…");
+
+    try {
+      const result = await gateway.verifyActiveModel();
+      setActiveModel({
+        providerId: result.providerId,
+        modelId: result.modelId,
+        configured: result.configured,
+        verified: result.verified,
+      });
+      setStatusMessage(result.message);
+      return result.success;
+    } catch (error: unknown) {
+      setStatusMessage(toErrorMessage(error));
+      return false;
+    } finally {
+      setIsUpdating(false);
+    }
+  }, [gateway]);
+
   return {
-    modelOptions,
-    selectedModelOptionId,
-    isConnected,
+    providers,
+    activeProviderId: activeModel?.providerId ?? "",
+    activeModelId: activeModel?.modelId ?? "",
     isLoading,
     isUpdating,
     statusMessage,
     selectModel,
-    connectApiKey,
+    connectProvider,
+    verifyLocalConfig,
   };
-}
-
-function toOptionId(providerId: string, modelId: string): string {
-  return `${providerId}:${modelId}`;
 }
 
 function toErrorMessage(error: unknown): string {

@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 
 from app.auth import require_local_user
 from app.core.dependencies import get_versioned_llm_client
+from app.exceptions import InvalidLLMConfigurationError
 from app.llm import (
     DEFAULT_LLM_MODEL,
     DEFAULT_LLM_PROVIDER,
@@ -18,6 +19,7 @@ from app.llm.schemas import (
     LLMActiveModelResponse,
     LLMConnectionTestRequest,
     LLMConnectionTestResponse,
+    LLMModelSelectionRequest,
     LLMPresetListResponse,
     LLMProviderResponse,
 )
@@ -75,6 +77,27 @@ async def get_active_llm(
     )
 
 
+@router.post("/active/verify", response_model=LLMActivationResponse)
+async def verify_active_llm(
+    client: LLMClient = Depends(get_versioned_llm_client),
+) -> LLMActivationResponse:
+    """使用后端当前配置的 Key 做真实连接测试，不向浏览器暴露 Key。"""
+    await client.set_connection_verified(False)
+    success = await LLMConnectionService().test_connection(client.model)
+    await client.set_connection_verified(success)
+    active = client.describe_active_model()
+    return LLMActivationResponse(
+        success=success,
+        message=(
+            "本地配置验证成功"
+            if success
+            else "模型已响应，但没有严格返回“连接成功”"
+        ),
+        provider=str(active["provider"]),
+        model=str(active["model"]),
+    )
+
+
 @router.put("/active", response_model=LLMActivationResponse)
 async def activate_llm(
     request: LLMConnectionTestRequest,
@@ -87,7 +110,7 @@ async def activate_llm(
     selected_model = str(model["request_params"]["model"])
 
     if success:
-        await client.reconfigure(model)
+        await client.reconfigure(model, connection_verified=True)
 
     return LLMActivationResponse(
         success=success,
@@ -98,6 +121,46 @@ async def activate_llm(
         ),
         provider=provider,
         model=selected_model,
+    )
+
+
+@router.put("/active/model", response_model=LLMActivationResponse)
+async def switch_active_llm_model(
+    request: LLMModelSelectionRequest,
+    client: LLMClient = Depends(get_versioned_llm_client),
+) -> LLMActivationResponse:
+    """复用当前厂商的后端 Key 切换模型，不向浏览器暴露 Key。"""
+    active_provider = str(client.model.get("provider", ""))
+    if request.provider != active_provider:
+        raise InvalidLLMConfigurationError(
+            "切换到其他厂商前，请先连接该厂商的 API Key"
+        )
+
+    api_key = str(client.model["client_params"].get("api_key", "")).strip()
+    if not api_key:
+        raise InvalidLLMConfigurationError(
+            f"请先连接 {request.provider} 的 API Key"
+        )
+
+    model = build_llm_model(
+        api_key=api_key,
+        provider=request.provider,
+        model=request.model,
+    )
+    success = await LLMConnectionService().test_connection(model)
+
+    if success:
+        await client.reconfigure(model, connection_verified=True)
+
+    return LLMActivationResponse(
+        success=success,
+        message=(
+            "模型已切换"
+            if success
+            else "模型已响应，但没有严格返回“连接成功”"
+        ),
+        provider=request.provider,
+        model=request.model,
     )
 
 

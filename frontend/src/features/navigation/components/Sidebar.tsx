@@ -2,6 +2,8 @@ import { useState } from "react";
 import {
   Bot,
   Check,
+  ChevronLeft,
+  ChevronRight,
   GitBranch,
   KeyRound,
   LogOut,
@@ -15,10 +17,10 @@ import {
 
 import { IconButton } from "../../../shared/ui/IconButton";
 import type { BackendConnectionStatus } from "../../../shared/api/useBackendConnection";
+import type { LLMProviderState } from "../../llm/model/types";
 import type {
   ConversationListItem,
   DeletedConversationListItem,
-  ModelOption,
 } from "../model/types";
 import styles from "./Sidebar.module.css";
 
@@ -26,9 +28,9 @@ export interface SidebarProps {
   conversations: ConversationListItem[];
   deletedConversations: DeletedConversationListItem[];
   activeConversationId: string | null;
-  modelOptions: ModelOption[];
-  selectedModelOptionId: string;
-  apiConnected: boolean;
+  providers: LLMProviderState[];
+  activeProviderId: string;
+  activeModelId: string;
   backendStatus: BackendConnectionStatus;
   modelLoading?: boolean;
   modelBusy?: boolean;
@@ -41,8 +43,13 @@ export interface SidebarProps {
   onTogglePinned(conversationId: string): void;
   onDeleteConversation(conversationId: string): Promise<boolean>;
   onRestoreConversation(conversationId: string): Promise<boolean>;
-  onSelectModel(optionId: string): Promise<void>;
-  onConnectApiKey(apiKey: string): Promise<boolean>;
+  onSelectModel(providerId: string, modelId: string): Promise<boolean>;
+  onConnectProvider(
+    providerId: string,
+    modelId: string,
+    apiKey: string,
+  ): Promise<boolean>;
+  onVerifyLocalConfig(): Promise<boolean>;
   onLogout(): Promise<void>;
 }
 
@@ -50,9 +57,9 @@ export function Sidebar({
   conversations,
   deletedConversations,
   activeConversationId,
-  modelOptions,
-  selectedModelOptionId,
-  apiConnected,
+  providers,
+  activeProviderId,
+  activeModelId,
   backendStatus,
   modelLoading = false,
   modelBusy = false,
@@ -66,23 +73,29 @@ export function Sidebar({
   onDeleteConversation,
   onRestoreConversation,
   onSelectModel,
-  onConnectApiKey,
+  onConnectProvider,
+  onVerifyLocalConfig,
   onLogout,
 }: SidebarProps) {
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
-  const [apiPanelOpen, setApiPanelOpen] = useState(false);
+  const [selectedProviderId, setSelectedProviderId] = useState<string | null>(
+    null,
+  );
+  const [keyEditorOpen, setKeyEditorOpen] = useState(false);
   const [trashOpen, setTrashOpen] = useState(false);
   const [apiKeyDraft, setApiKeyDraft] = useState("");
 
-  const selectedModel =
-    modelOptions.find(
-      (model) => model.optionId === selectedModelOptionId,
-    ) ?? modelOptions[0];
+  const activeProvider = providers.find(
+    (provider) => provider.providerId === activeProviderId,
+  );
+  const selectedProvider = providers.find(
+    (provider) => provider.providerId === selectedProviderId,
+  );
   const pinnedConversations = conversations.filter((item) => item.pinned);
   const recentConversations = conversations.filter((item) => !item.pinned);
   const backendConnected = backendStatus === "connected";
   const modelUnavailable =
-    !backendConnected || modelLoading || modelBusy || !selectedModel;
+    !backendConnected || modelLoading || modelBusy || providers.length === 0;
   const modelMeta =
     backendStatus === "checking"
       ? "检测中"
@@ -90,19 +103,9 @@ export function Sidebar({
         ? "不可用"
         : modelLoading
           ? "加载中"
-          : selectedModel?.label ?? "暂无模型";
-  const apiStatus =
-    backendStatus === "checking"
-      ? "检测中"
-      : !backendConnected
-        ? "后端未连接"
-        : modelLoading
-          ? "加载中"
-          : modelBusy
-            ? "连接中"
-            : apiConnected
-              ? "已连接"
-              : "未连接";
+          : activeProvider
+            ? formatActiveModelLabel(activeProvider.name, activeModelId)
+            : "暂无模型";
 
   return (
     <div className={styles.sidebarContent}>
@@ -127,7 +130,8 @@ export function Sidebar({
           onClick={() => {
             onNewConversation();
             setModelMenuOpen(false);
-            setApiPanelOpen(false);
+            setSelectedProviderId(null);
+            setKeyEditorOpen(false);
             setTrashOpen(false);
           }}
         >
@@ -141,8 +145,14 @@ export function Sidebar({
           disabled={modelUnavailable}
           aria-expanded={modelMenuOpen}
           onClick={() => {
-            setModelMenuOpen((open) => !open);
-            setApiPanelOpen(false);
+            setModelMenuOpen((open) => {
+              const nextOpen = !open;
+              if (nextOpen) {
+                setSelectedProviderId(null);
+                setKeyEditorOpen(false);
+              }
+              return nextOpen;
+            });
             setTrashOpen(false);
           }}
         >
@@ -153,92 +163,169 @@ export function Sidebar({
 
         {modelMenuOpen ? (
           <div className={styles.inlinePanel}>
-            {modelOptions.map((model) => (
-              <button
-                key={model.optionId}
-                type="button"
-                className={styles.modelOption}
-                disabled={modelBusy}
-                data-selected={model.optionId === selectedModelOptionId}
-                onClick={() => {
-                  void onSelectModel(model.optionId);
-                  setModelMenuOpen(false);
-                }}
-              >
-                <span>
-                  <strong>{model.label}</strong>
-                  <small>{model.description}</small>
-                </span>
-                {model.optionId === selectedModelOptionId ? (
-                  <Check size={15} />
+            {selectedProvider ? (
+              <>
+                <button
+                  type="button"
+                  className={styles.panelBack}
+                  onClick={() => {
+                    setSelectedProviderId(null);
+                    setKeyEditorOpen(false);
+                    setApiKeyDraft("");
+                  }}
+                >
+                  <ChevronLeft size={14} />
+                  <span>{selectedProvider.name}</span>
+                </button>
+
+                <div className={styles.providerSummary}>
+                  <span
+                    className={styles.connectionStatus}
+                    data-connected={selectedProvider.configured}
+                  >
+                    {getProviderStatus(selectedProvider)}
+                  </span>
+                  <small>同一厂商的模型共用一个 API Key</small>
+                </div>
+
+                <div className={styles.modelListLabel}>选择模型</div>
+                {selectedProvider.models.map((modelId) => {
+                  const active =
+                    selectedProvider.active && modelId === activeModelId;
+                  return (
+                    <button
+                      key={modelId}
+                      type="button"
+                      className={styles.modelOption}
+                      disabled={modelBusy || !selectedProvider.configured}
+                      data-selected={active}
+                      onClick={async () => {
+                        const success = await onSelectModel(
+                          selectedProvider.providerId,
+                          modelId,
+                        );
+                        if (success) {
+                          setModelMenuOpen(false);
+                        }
+                      }}
+                    >
+                      <span>
+                        <strong>{modelId}</strong>
+                        {!selectedProvider.configured ? (
+                          <small>连接 API Key 后可用</small>
+                        ) : null}
+                      </span>
+                      {active ? (
+                        <Check size={15} />
+                      ) : !selectedProvider.configured ? (
+                        <KeyRound size={13} />
+                      ) : null}
+                    </button>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  className={styles.keyAction}
+                  disabled={modelBusy}
+                  aria-expanded={keyEditorOpen}
+                  onClick={() => setKeyEditorOpen((open) => !open)}
+                >
+                  <KeyRound size={14} />
+                  <span>
+                    {selectedProvider.configured
+                      ? "更换 API Key"
+                      : `连接 ${shortProviderName(selectedProvider.name)} API Key`}
+                  </span>
+                </button>
+
+                {keyEditorOpen ? (
+                  <form
+                    className={styles.apiForm}
+                    onSubmit={async (event) => {
+                      event.preventDefault();
+                      const apiKey = apiKeyDraft.trim();
+                      if (!apiKey) {
+                        return;
+                      }
+
+                      const targetModel =
+                        selectedProvider.active &&
+                        selectedProvider.models.includes(activeModelId)
+                          ? activeModelId
+                          : selectedProvider.defaultModel;
+                      const success = await onConnectProvider(
+                        selectedProvider.providerId,
+                        targetModel,
+                        apiKey,
+                      );
+                      if (success) {
+                        setApiKeyDraft("");
+                        setKeyEditorOpen(false);
+                      }
+                    }}
+                  >
+                    <label className={styles.apiField}>
+                      <span>{selectedProvider.name} API Key</span>
+                      <input
+                        type="password"
+                        value={apiKeyDraft}
+                        autoComplete="off"
+                        placeholder="输入 API Key"
+                        onChange={(event) =>
+                          setApiKeyDraft(event.target.value)
+                        }
+                      />
+                    </label>
+                    <div className={styles.apiFooter}>
+                      <small>仅发送到本地后端，不写入浏览器存储</small>
+                      <button
+                        type="submit"
+                        disabled={modelBusy || !apiKeyDraft.trim()}
+                      >
+                        {modelBusy ? "验证中" : "连接"}
+                      </button>
+                    </div>
+                  </form>
                 ) : null}
-              </button>
-            ))}
+
+                {selectedProvider.active && selectedProvider.configured ? (
+                  <button
+                    type="button"
+                    className={styles.verifyLocalButton}
+                    disabled={modelBusy}
+                    onClick={() => void onVerifyLocalConfig()}
+                  >
+                    {modelBusy ? "验证中" : "测试当前配置"}
+                  </button>
+                ) : null}
+                {modelStatusMessage ? (
+                  <p className={styles.modelStatus}>{modelStatusMessage}</p>
+                ) : null}
+              </>
+            ) : (
+              providers.map((provider) => (
+                <button
+                  key={provider.providerId}
+                  type="button"
+                  className={styles.providerOption}
+                  disabled={modelBusy}
+                  data-selected={provider.active}
+                  onClick={() => {
+                    setSelectedProviderId(provider.providerId);
+                    setKeyEditorOpen(false);
+                    setApiKeyDraft("");
+                  }}
+                >
+                  <span>
+                    <strong>{provider.name}</strong>
+                    <small>{getProviderStatus(provider)}</small>
+                  </span>
+                  <ChevronRight size={14} />
+                </button>
+              ))
+            )}
           </div>
-        ) : null}
-
-        <button
-          type="button"
-          className={styles.actionButton}
-          disabled={modelUnavailable}
-          aria-expanded={apiPanelOpen}
-          onClick={() => {
-            setApiPanelOpen((open) => !open);
-            setModelMenuOpen(false);
-            setTrashOpen(false);
-          }}
-        >
-          <KeyRound size={17} />
-          <span>连接 API Key</span>
-          <span
-            className={styles.connectionStatus}
-            data-connected={backendConnected && apiConnected}
-          >
-            {apiStatus}
-          </span>
-        </button>
-
-        {apiPanelOpen ? (
-          <form
-            className={styles.inlinePanel}
-            onSubmit={async (event) => {
-              event.preventDefault();
-              const apiKey = apiKeyDraft.trim();
-
-              if (!apiKey) {
-                return;
-              }
-
-              const success = await onConnectApiKey(apiKey);
-              if (success) {
-                setApiKeyDraft("");
-                setApiPanelOpen(false);
-              }
-            }}
-          >
-            <label className={styles.apiField}>
-              <span>API Key</span>
-              <input
-                type="password"
-                value={apiKeyDraft}
-                autoComplete="off"
-                placeholder="sk-..."
-                onChange={(event) => setApiKeyDraft(event.target.value)}
-              />
-            </label>
-            <div className={styles.apiFooter}>
-              <small>仅发送到本地后端，不写入浏览器存储</small>
-              <button
-                type="submit"
-                disabled={modelBusy || !apiKeyDraft.trim()}
-              >
-                {modelBusy ? "连接中" : "连接"}
-              </button>
-            </div>
-            {modelStatusMessage ? (
-              <p className={styles.modelStatus}>{modelStatusMessage}</p>
-            ) : null}
-          </form>
         ) : null}
       </nav>
 
@@ -307,7 +394,8 @@ export function Sidebar({
           onClick={() => {
             setTrashOpen((open) => !open);
             setModelMenuOpen(false);
-            setApiPanelOpen(false);
+            setSelectedProviderId(null);
+            setKeyEditorOpen(false);
           }}
         >
           <Trash2 size={16} />
@@ -347,6 +435,32 @@ export function Sidebar({
       </div>
     </div>
   );
+}
+
+function getProviderStatus(provider: LLMProviderState): string {
+  if (provider.active && provider.verified) {
+    return "正在使用 · 已验证";
+  }
+  if (provider.active && provider.configured) {
+    return "正在使用 · 已配置";
+  }
+  return provider.configured ? "本次已连接" : "未配置";
+}
+
+function formatActiveModelLabel(
+  providerName: string,
+  modelId: string,
+): string {
+  const provider = shortProviderName(providerName);
+  const prefix = `${provider}-`;
+  const model = modelId.toLowerCase().startsWith(prefix.toLowerCase())
+    ? modelId.slice(prefix.length)
+    : modelId;
+  return `${provider} · ${model}`;
+}
+
+function shortProviderName(providerName: string): string {
+  return providerName.split("/")[0].trim();
 }
 
 interface HistorySectionProps {

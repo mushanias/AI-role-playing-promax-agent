@@ -1,4 +1,5 @@
 export type TurnStatus = "pending" | "completed" | "failed";
+export type TurnFinishReason = "completed" | "stopped";
 
 export interface ConversationTurn {
   turnId: string;
@@ -8,6 +9,8 @@ export interface ConversationTurn {
   assistantContent: string | null;
   status: TurnStatus;
   responseDurationMs?: number | null;
+  failureMessage?: string | null;
+  finishReason?: TurnFinishReason | null;
   variantIndex: number;
   variantCount: number;
 }
@@ -51,6 +54,31 @@ export interface SendMessageInput {
 }
 
 export interface PendingRequest {
+  conversationId: string;
+  generationId: string;
   content: string;
+  assistantContent: string;
   startedAt: number;
+  status: "starting" | "streaming" | "stopping";
+}
+
+export type ChatStreamEventType =
+  | "started"
+  | "delta"
+  | "completed"
+  | "stopped"
+  | "failed";
+
+export interface ChatStreamEvent {
+  type: ChatStreamEventType;
+  generationId: string;
+  conversationId?: string;
+  branchId?: string;
+  turnId?: string;
+  content?: string;
+  durationMs?: number;
+  finishReason?: TurnFinishReason;
+  code?: string;
+  message?: string;
+  status?: number;
 }

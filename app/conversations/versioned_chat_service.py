@@ -2,6 +2,8 @@
 
 import asyncio
 import logging
+from collections.abc import AsyncIterator
+from contextlib import suppress
 from datetime import datetime, timezone
 from time import perf_counter
 from typing import Dict, List, Optional, Protocol
@@ -12,8 +14,14 @@ from app.exceptions import (
     InvalidBranchOperationError,
     TurnNotFoundError,
 )
+from app.conversations.chat_stream import ChatStreamEvent
 from app.conversations.chat_turn import ChatTurnResult
-from app.conversations.conversation import Conversation, Turn, TurnStatus
+from app.conversations.conversation import (
+    Conversation,
+    Turn,
+    TurnFinishReason,
+    TurnStatus,
+)
 from app.conversations.conversation_repository import ConversationRepository
 from app.conversations.memory.context_plan import ManagedContext
 from app.performance.recorder import PerformanceSink
@@ -36,6 +44,12 @@ class ChatLLMClient(Protocol):
     """新版 ChatService 依赖的最小主对话 LLM 接口。"""
 
     async def chat(self, messages: List[Dict[str, str]]) -> str:
+        ...
+
+    def stream_chat(
+        self,
+        messages: List[Dict[str, str]],
+    ) -> AsyncIterator[str]:
         ...
 
 
@@ -130,6 +144,176 @@ class VersionedChatService:
             quality_degraded=context.quality_degraded,
         )
 
+    async def stream(
+        self,
+        conversation_id: str,
+        user_input: str,
+        generation_id: str,
+        stop_event: asyncio.Event,
+        branch_id: Optional[str] = None,
+    ) -> AsyncIterator[ChatStreamEvent]:
+        """持久化 pending Turn，并把模型文本逐段转换为领域事件。"""
+        request_started = perf_counter()
+        turn_id = str(uuid4())
+        reply_parts: list[str] = []
+        finalized = False
+        context_ms = 0.0
+        llm_ms = 0.0
+        input_tokens = 0
+        warnings: tuple[str, ...] = ()
+        compression_passes = 0
+        quality_degraded = False
+        selected_branch_id = await self._create_pending_turn(
+            conversation_id=conversation_id,
+            branch_id=branch_id,
+            turn_id=turn_id,
+            user_input=user_input,
+        )
+
+        yield ChatStreamEvent(
+            type="started",
+            generation_id=generation_id,
+            conversation_id=conversation_id,
+            branch_id=selected_branch_id,
+            turn_id=turn_id,
+        )
+
+        try:
+            if not stop_event.is_set():
+                context_started = perf_counter()
+                context = await self.context_manager.build(
+                    conversation_id=conversation_id,
+                    branch_id=selected_branch_id,
+                )
+                context_ms = self._elapsed_ms(context_started)
+                input_tokens = context.estimated_tokens
+                warnings = context.warnings
+                compression_passes = context.compression_passes
+                quality_degraded = context.quality_degraded
+
+                llm_started = perf_counter()
+                async for content in self._stream_until_stopped(
+                    self.llm_client.stream_chat(list(context.messages)),
+                    stop_event,
+                ):
+                    reply_parts.append(content)
+                    yield ChatStreamEvent(
+                        type="delta",
+                        generation_id=generation_id,
+                        conversation_id=conversation_id,
+                        branch_id=selected_branch_id,
+                        turn_id=turn_id,
+                        content=content,
+                    )
+                llm_ms = self._elapsed_ms(llm_started)
+
+            response_duration_ms = round(
+                self._elapsed_ms(request_started)
+            )
+            finish_reason = (
+                TurnFinishReason.STOPPED
+                if stop_event.is_set()
+                else TurnFinishReason.COMPLETED
+            )
+            await self._complete_turn(
+                conversation_id=conversation_id,
+                branch_id=selected_branch_id,
+                turn_id=turn_id,
+                reply="".join(reply_parts),
+                response_duration_ms=response_duration_ms,
+                finish_reason=finish_reason,
+            )
+            finalized = True
+
+            await self._record_performance_safely(
+                conversation_id=conversation_id,
+                branch_id=selected_branch_id,
+                total_ms=self._elapsed_ms(request_started),
+                context_ms=context_ms,
+                llm_ms=llm_ms,
+                input_tokens=input_tokens,
+                compression_passes=compression_passes,
+                quality_degraded=quality_degraded,
+            )
+
+            yield ChatStreamEvent(
+                type=(
+                    "stopped"
+                    if finish_reason == TurnFinishReason.STOPPED
+                    else "completed"
+                ),
+                generation_id=generation_id,
+                conversation_id=conversation_id,
+                branch_id=selected_branch_id,
+                turn_id=turn_id,
+                duration_ms=response_duration_ms,
+                warnings=warnings,
+                compression_passes=compression_passes,
+                quality_degraded=quality_degraded,
+            )
+        except asyncio.CancelledError:
+            stop_event.set()
+            if not finalized:
+                await asyncio.shield(
+                    self._complete_turn(
+                        conversation_id=conversation_id,
+                        branch_id=selected_branch_id,
+                        turn_id=turn_id,
+                        reply="".join(reply_parts),
+                        response_duration_ms=round(
+                            self._elapsed_ms(request_started)
+                        ),
+                        finish_reason=TurnFinishReason.STOPPED,
+                    )
+                )
+            raise
+        except Exception as error:
+            if not finalized:
+                await self._mark_turn_failed_safely(
+                    conversation_id=conversation_id,
+                    branch_id=selected_branch_id,
+                    turn_id=turn_id,
+                    failure_message=self._describe_failure(error),
+                )
+            raise
+
+    @staticmethod
+    async def _stream_until_stopped(
+        stream: AsyncIterator[str],
+        stop_event: asyncio.Event,
+    ) -> AsyncIterator[str]:
+        """在等待下一个分片时同时监听停止信号。"""
+        iterator = stream.__aiter__()
+
+        try:
+            while not stop_event.is_set():
+                next_task = asyncio.create_task(anext(iterator))
+                stop_task = asyncio.create_task(stop_event.wait())
+                done, _ = await asyncio.wait(
+                    {next_task, stop_task},
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+
+                if next_task in done:
+                    stop_task.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await stop_task
+                    try:
+                        yield next_task.result()
+                    except StopAsyncIteration:
+                        return
+                    continue
+
+                next_task.cancel()
+                with suppress(asyncio.CancelledError, StopAsyncIteration):
+                    await next_task
+                return
+        finally:
+            close = getattr(iterator, "aclose", None)
+            if close is not None:
+                with suppress(RuntimeError):
+                    await close()
+
     async def _record_performance_safely(
         self,
         *,
@@ -214,6 +398,7 @@ class VersionedChatService:
         turn_id: str,
         reply: str,
         response_duration_ms: int,
+        finish_reason: TurnFinishReason = TurnFinishReason.COMPLETED,
     ) -> None:
         completed_at = datetime.now(timezone.utc)
 
@@ -240,6 +425,7 @@ class VersionedChatService:
             turn.status = TurnStatus.COMPLETED
             turn.completed_at = completed_at
             turn.response_duration_ms = response_duration_ms
+            turn.finish_reason = finish_reason
             branch.head_turn_id = turn_id
             branch.pending_turn_id = None
             return conversation
@@ -296,6 +482,7 @@ class VersionedChatService:
 
             turn.status = TurnStatus.FAILED
             turn.failure_message = failure_message
+            branch.failed_turn_ids.append(turn_id)
             branch.pending_turn_id = None
             return conversation
 

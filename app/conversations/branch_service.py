@@ -13,7 +13,6 @@ from app.exceptions import (
 from app.conversations.conversation import (
     Branch,
     Conversation,
-    SummaryVersion,
     Turn,
     TurnStatus,
 )

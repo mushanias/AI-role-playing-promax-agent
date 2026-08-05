@@ -15,6 +15,13 @@ class TurnStatus(str, Enum):
     FAILED = "failed"
 
 
+class TurnFinishReason(str, Enum):
+    """completed Turn 的结束原因。"""
+
+    COMPLETED = "completed"
+    STOPPED = "stopped"
+
+
 class Turn(BaseModel):
     """一次用户输入及其对应助手回复组成的原始轮次。"""
 
@@ -29,6 +36,7 @@ class Turn(BaseModel):
     completed_at: Optional[datetime] = None
     response_duration_ms: Optional[int] = Field(default=None, ge=0)
     failure_message: Optional[str] = None
+    finish_reason: Optional[TurnFinishReason] = None
 
     @model_validator(mode="after")
     def validate_state(self) -> "Turn":
@@ -45,6 +53,8 @@ class Turn(BaseModel):
                 raise ValueError("pending Turn 不能包含失败信息")
             if self.response_duration_ms is not None:
                 raise ValueError("pending Turn 不能包含响应耗时")
+            if self.finish_reason is not None:
+                raise ValueError("pending Turn 不能包含结束原因")
 
         elif self.status == TurnStatus.COMPLETED:
             if self.assistant_content is None:
@@ -61,6 +71,8 @@ class Turn(BaseModel):
                 raise ValueError("failed Turn 不能包含完成时间")
             if self.response_duration_ms is not None:
                 raise ValueError("failed Turn 不能包含响应耗时")
+            if self.finish_reason is not None:
+                raise ValueError("failed Turn 不能包含结束原因")
 
         return self
 
@@ -94,6 +106,7 @@ class Branch(BaseModel):
     forked_from_turn_id: Optional[str] = None
     head_turn_id: Optional[str] = None
     pending_turn_id: Optional[str] = None
+    failed_turn_ids: list[str] = Field(default_factory=list)
     active_summary_id: Optional[str] = None
     created_at: datetime
 
@@ -236,6 +249,7 @@ class Conversation(BaseModel):
 
     def _validate_branch_references(self) -> None:
         referenced_pending_turns: Set[str] = set()
+        referenced_failed_turns: Set[str] = set()
 
         for branch in self.branches.values():
             if branch.head_turn_id is not None:
@@ -267,6 +281,22 @@ class Conversation(BaseModel):
                 if branch.pending_turn_id in referenced_pending_turns:
                     raise ValueError("同一个 pending Turn 不能属于多个 Branch")
                 referenced_pending_turns.add(branch.pending_turn_id)
+
+            if len(branch.failed_turn_ids) != len(set(branch.failed_turn_ids)):
+                raise ValueError("同一 Branch 不能重复引用 failed Turn")
+
+            for failed_turn_id in branch.failed_turn_ids:
+                if failed_turn_id not in self.turns:
+                    raise ValueError(
+                        f"Branch {branch.branch_id} 的 failed Turn 不存在"
+                    )
+                if self.turns[failed_turn_id].status != TurnStatus.FAILED:
+                    raise ValueError(
+                        "Branch.failed_turn_ids 必须指向 failed Turn"
+                    )
+                if failed_turn_id in referenced_failed_turns:
+                    raise ValueError("同一个 failed Turn 不能属于多个 Branch")
+                referenced_failed_turns.add(failed_turn_id)
 
             if branch.active_summary_id is not None:
                 if branch.active_summary_id not in self.summaries:

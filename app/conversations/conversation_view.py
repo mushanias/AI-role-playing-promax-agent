@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Tuple
 
-from app.conversations.conversation import TurnStatus
+from app.conversations.conversation import TurnFinishReason, TurnStatus
 
 
 @dataclass(frozen=True)
@@ -19,6 +19,8 @@ class HistoryTurn:
     created_at: datetime
     completed_at: Optional[datetime]
     response_duration_ms: Optional[int]
+    failure_message: Optional[str]
+    finish_reason: Optional[TurnFinishReason]
     variant_index: int
     variant_count: int
 

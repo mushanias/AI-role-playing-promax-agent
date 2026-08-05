@@ -29,6 +29,30 @@
   font-size: 12px;
 }
 
+.assistantSection {
+  width: 100%;
+}
+
+.assistantContent {
+  color: var(--color-text-primary);
+  font-size: 15px;
+  line-height: 1.78;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.assistantContent p {
+  margin: 0;
+}
+
+.assistantContent p + p {
+  margin-top: 14px;
+}
+
+.assistantSection .waiting {
+  margin-top: 7px;
+}
+
 .waiting time {
   color: var(--color-text-tertiary);
   font-variant-numeric: tabular-nums;

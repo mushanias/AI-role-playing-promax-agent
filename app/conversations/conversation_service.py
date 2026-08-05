@@ -1,11 +1,13 @@
 """为 HTTP 层组合会话创建、历史读取、重写和分支切换。"""
 
 import asyncio
+from collections.abc import AsyncIterator
 from typing import List, Optional, Protocol
 from uuid import uuid4
 
 from app.exceptions import BranchNotFoundError
 from app.conversations.chat_turn import ChatTurnResult
+from app.conversations.chat_stream import ChatStreamEvent
 from app.conversations.conversation import (
     Branch,
     Conversation,
@@ -31,6 +33,16 @@ class ConversationChatSender(Protocol):
         user_input: str,
         branch_id: Optional[str] = None,
     ) -> ChatTurnResult:
+        ...
+
+    def stream(
+        self,
+        conversation_id: str,
+        user_input: str,
+        generation_id: str,
+        stop_event: asyncio.Event,
+        branch_id: Optional[str] = None,
+    ) -> AsyncIterator[ChatStreamEvent]:
         ...
 
 
@@ -111,9 +123,14 @@ class ConversationService:
             conversation,
             branch,
         )
+        failed_turns = self._collect_failed_turns(
+            conversation,
+            branch,
+            completed_turns,
+        )
         history_turns = [
             self._build_history_turn(conversation, turn)
-            for turn in completed_turns
+            for turn in [*completed_turns, *failed_turns]
         ]
 
         if branch.pending_turn_id is not None:
@@ -128,10 +145,16 @@ class ConversationService:
                     created_at=pending_turn.created_at,
                     completed_at=None,
                     response_duration_ms=None,
+                    failure_message=None,
+                    finish_reason=None,
                     variant_index=0,
                     variant_count=1,
                 )
             )
+
+        history_turns.sort(
+            key=lambda turn: (turn.created_at, turn.turn_id)
+        )
 
         return ConversationHistory(
             conversation_id=conversation.conversation_id,
@@ -152,6 +175,24 @@ class ConversationService:
             user_input=user_input,
             branch_id=branch_id,
         )
+
+    async def stream_message(
+        self,
+        conversation_id: str,
+        user_input: str,
+        generation_id: str,
+        stop_event: asyncio.Event,
+        branch_id: Optional[str] = None,
+    ) -> AsyncIterator[ChatStreamEvent]:
+        """逐段返回指定分支上的新回答。"""
+        async for event in self.chat_service.stream(
+            conversation_id=conversation_id,
+            user_input=user_input,
+            generation_id=generation_id,
+            stop_event=stop_event,
+            branch_id=branch_id,
+        ):
+            yield event
 
     async def rewrite_turn(
         self,
@@ -176,6 +217,41 @@ class ConversationService:
                 user_input=user_input,
                 branch_id=new_branch.branch_id,
             )
+        except (Exception, asyncio.CancelledError):
+            await self.branch_service.switch_branch(
+                conversation_id=conversation_id,
+                branch_id=source_branch_id,
+            )
+            raise
+
+    async def stream_rewrite_turn(
+        self,
+        conversation_id: str,
+        target_turn_id: str,
+        user_input: str,
+        generation_id: str,
+        stop_event: asyncio.Event,
+        source_branch_id: Optional[str] = None,
+    ) -> AsyncIterator[ChatStreamEvent]:
+        """创建重写分支，并逐段返回修改后的回答。"""
+        if source_branch_id is None:
+            conversation = await self.repository.load(conversation_id)
+            source_branch_id = conversation.active_branch_id
+
+        new_branch = await self.branch_service.create_branch_for_rewrite(
+            conversation_id=conversation_id,
+            source_branch_id=source_branch_id,
+            target_turn_id=target_turn_id,
+        )
+        try:
+            async for event in self.chat_service.stream(
+                conversation_id=conversation_id,
+                user_input=user_input,
+                generation_id=generation_id,
+                stop_event=stop_event,
+                branch_id=new_branch.branch_id,
+            ):
+                yield event
         except (Exception, asyncio.CancelledError):
             await self.branch_service.switch_branch(
                 conversation_id=conversation_id,
@@ -239,6 +315,7 @@ class ConversationService:
             )
         )
         variant_ids = [candidate.turn_id for candidate in variants]
+        is_completed = turn.status == TurnStatus.COMPLETED
 
         return HistoryTurn(
             turn_id=turn.turn_id,
@@ -249,9 +326,38 @@ class ConversationService:
             created_at=turn.created_at,
             completed_at=turn.completed_at,
             response_duration_ms=turn.response_duration_ms,
-            variant_index=variant_ids.index(turn.turn_id),
-            variant_count=len(variants),
+            failure_message=turn.failure_message,
+            finish_reason=turn.finish_reason,
+            variant_index=(
+                variant_ids.index(turn.turn_id) if is_completed else 0
+            ),
+            variant_count=(len(variants) if is_completed else 1),
         )
+
+    @staticmethod
+    def _collect_failed_turns(
+        conversation: Conversation,
+        branch: Branch,
+        completed_turns: List[Turn],
+    ) -> List[Turn]:
+        """读取分支失败尝试，并兼容升级前没有 failed_turn_ids 的单分支数据。"""
+        if branch.failed_turn_ids:
+            return [
+                conversation.turns[turn_id]
+                for turn_id in branch.failed_turn_ids
+            ]
+
+        if len(conversation.branches) != 1:
+            return []
+
+        path_ids = {turn.turn_id for turn in completed_turns}
+        valid_parent_ids = path_ids | {None}
+        return [
+            turn
+            for turn in conversation.turns.values()
+            if turn.status == TurnStatus.FAILED
+            and turn.parent_turn_id in valid_parent_ids
+        ]
 
     @staticmethod
     def _build_conversation_summary(

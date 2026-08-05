@@ -2,7 +2,7 @@
 
 import os
 from copy import deepcopy
-from typing import Any, Literal
+from typing import Any
 
 from dotenv import load_dotenv
 
@@ -11,7 +11,6 @@ from app.exceptions import InvalidLLMConfigurationError
 
 load_dotenv()
 
-LLMSDK = Literal["openai_chat", "openai_responses", "anthropic"]
 LLMModel = dict[str, Any]
 
 

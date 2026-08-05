@@ -7,7 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.auth.routes import router as auth_router
-from app.conversations.routes import router as conversations_router
+from app.conversations.routes import (
+    generations_router,
+    router as conversations_router,
+)
 from app.core.config import CORS_ALLOW_ORIGINS
 from app.core.error_mapping import map_app_exception
 from app.core.logger import setup_logging
@@ -47,6 +50,7 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(conversations_router)
+app.include_router(generations_router)
 app.include_router(llm_router)
 app.include_router(performance_router)
 

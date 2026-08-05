@@ -211,6 +211,35 @@ class ConversationServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(history.turns[-1].status, TurnStatus.PENDING)
         self.assertIsNone(history.turns[-1].assistant_content)
 
+    async def test_history_includes_failed_turn_without_assistant_reply(self) -> None:
+        failed_turn = Turn(
+            turn_id="turn-failed",
+            parent_turn_id="turn-3a",
+            user_content="这次调用失败了",
+            status=TurnStatus.FAILED,
+            created_at=NOW + timedelta(seconds=6),
+            failure_message="LLMNetworkError: 网络失败",
+        )
+
+        def add_failed(conversation: Conversation) -> Conversation:
+            conversation.turns[failed_turn.turn_id] = failed_turn
+            conversation.branches["branch-main"].failed_turn_ids.append(
+                failed_turn.turn_id
+            )
+            return conversation
+
+        await self.repository.update("conversation-1", add_failed)
+
+        history = await self.service.get_history("conversation-1")
+
+        self.assertEqual(history.turns[-1].turn_id, "turn-failed")
+        self.assertEqual(history.turns[-1].status, TurnStatus.FAILED)
+        self.assertEqual(
+            history.turns[-1].failure_message,
+            "LLMNetworkError: 网络失败",
+        )
+        self.assertIsNone(history.turns[-1].assistant_content)
+
     async def test_rewrite_creates_branch_before_target_turn(self) -> None:
         result = await self.service.rewrite_turn(
             conversation_id="conversation-1",

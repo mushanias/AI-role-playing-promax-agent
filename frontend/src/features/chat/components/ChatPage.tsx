@@ -25,6 +25,7 @@ export function ChatPage({
     view,
     isLoading,
     isSubmitting,
+    isGenerating,
     error,
     pendingRequest,
     failedRequestContent,
@@ -36,21 +37,33 @@ export function ChatPage({
     cancelEditing,
     selectVariant,
     sendMessage,
+    stopGeneration,
     dismissError,
   } = controller;
   const [previewMode, setPreviewMode] = useState(readPreviewMode);
   const previewStartedAt = useRef(Date.now()).current;
   const simulatedError = createPreviewError(previewMode);
   const displayedError = error ?? simulatedError;
+  const currentPendingRequest =
+    pendingRequest?.conversationId === view?.conversationId
+      ? pendingRequest
+      : null;
   const displayedPendingRequest =
-    pendingRequest ??
+    currentPendingRequest ??
     (previewMode === "waiting"
       ? {
+          conversationId: view?.conversationId ?? "preview",
+          generationId: "preview",
           content: "请帮我分析一下这段对话，并给出下一步建议。",
+          assistantContent: "",
           startedAt: previewStartedAt,
+          status: "starting" as const,
         }
       : null);
-  const hasTurns = (view?.turns.length ?? 0) > 0;
+  const displayedTurns = currentPendingRequest
+    ? (view?.turns.filter((turn) => turn.status !== "pending") ?? [])
+    : (view?.turns ?? []);
+  const hasTurns = displayedTurns.length > 0;
   const hasActivity =
     hasTurns || displayedPendingRequest !== null || displayedError !== null;
 
@@ -88,13 +101,13 @@ export function ChatPage({
 
         {!isLoading && hasActivity ? (
           <div className={styles.turnList}>
-            {view?.turns.map((turn) => (
+            {displayedTurns.map((turn) => (
               <MessageTurn
-                key={`${view.activeBranchId}-${turn.turnId}`}
+                key={`${view?.activeBranchId ?? "no-branch"}-${turn.turnId}`}
                 turn={turn}
                 isEditing={editingTurnId === turn.turnId}
                 editingContent={editingContent}
-                disabled={isSubmitting}
+                disabled={isSubmitting || isGenerating}
                 onStartEdit={() => startEditing(turn.turnId)}
                 onEditingContentChange={changeEditingContent}
                 onSaveEdit={() => void saveEditing()}
@@ -154,7 +167,17 @@ export function ChatPage({
 
       <div className={styles.composerDock}>
         <div className={styles.composerContent}>
-          <Composer disabled={isLoading || isSubmitting} onSend={sendMessage} />
+          <Composer
+            disabled={
+              isLoading ||
+              isSubmitting ||
+              (isGenerating && currentPendingRequest === null)
+            }
+            generating={currentPendingRequest !== null}
+            stopping={currentPendingRequest?.status === "stopping"}
+            onSend={sendMessage}
+            onStop={stopGeneration}
+          />
           <p className={styles.disclaimer}>
             AI 可能会犯错，请核查重要信息。
           </p>

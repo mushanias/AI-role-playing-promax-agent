@@ -15,6 +15,7 @@ from app.core.config import (
 from app.conversations.branch_service import BranchService
 from app.conversations.conversation_repository import ConversationRepository
 from app.conversations.conversation_service import ConversationService
+from app.conversations.generation_registry import GenerationRegistry
 from app.conversations.memory.context_builder import ContextBuilder
 from app.conversations.memory.context_planner import ContextPlanner
 from app.conversations.memory.llm_compressor import LLMCompressor
@@ -48,6 +49,12 @@ def get_versioned_llm_client() -> LLMClient:
 def get_performance_recorder() -> CsvPerformanceRecorder:
     """提供聊天主流程和只读页面共用的性能记录器。"""
     return CsvPerformanceRecorder(PERFORMANCE_METRICS_PATH)
+
+
+@lru_cache
+def get_generation_registry() -> GenerationRegistry:
+    """提供流式生成与停止接口共享的进程内注册表。"""
+    return GenerationRegistry()
 
 
 @lru_cache
