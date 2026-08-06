@@ -73,9 +73,17 @@ export function useBackendConnection(): BackendConnectionStatus {
       scheduleNextCheck("disconnected");
     };
 
+    const checkWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        void checkConnection();
+      }
+    };
+
     void checkConnection();
     window.addEventListener("online", checkConnection);
     window.addEventListener("offline", markOffline);
+    window.addEventListener("pageshow", checkWhenVisible);
+    document.addEventListener("visibilitychange", checkWhenVisible);
 
     return () => {
       isActive = false;
@@ -85,6 +93,8 @@ export function useBackendConnection(): BackendConnectionStatus {
       }
       window.removeEventListener("online", checkConnection);
       window.removeEventListener("offline", markOffline);
+      window.removeEventListener("pageshow", checkWhenVisible);
+      document.removeEventListener("visibilitychange", checkWhenVisible);
     };
   }, []);
 

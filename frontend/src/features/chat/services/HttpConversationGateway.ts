@@ -1,14 +1,10 @@
-import { API_BASE_URL } from "../../../config/runtime";
-import {
-  apiRequest,
-  ApiRequestError,
-  AUTH_REQUIRED_EVENT,
-} from "../../../shared/api/ApiClient";
+import { apiRequest, ApiRequestError } from "../../../shared/api/ApiClient";
 import type {
-  ChatStreamEvent,
   ConversationTurn,
   ConversationSummary,
   ConversationView,
+  GenerationSnapshot,
+  GenerationStatus,
   RewriteUserMessageInput,
   SelectVariantInput,
   SendMessageInput,
@@ -64,6 +60,20 @@ interface TurnVariantDto {
 
 interface TurnVariantsDto {
   variants: TurnVariantDto[];
+}
+
+interface GenerationStatusDto {
+  generation_id: string;
+  status: GenerationStatus;
+  conversation_id: string;
+  branch_id: string | null;
+  turn_id: string | null;
+  content: string;
+  duration_ms: number | null;
+  finish_reason: "completed" | "stopped" | null;
+  error_code: string | null;
+  error_message: string | null;
+  error_status: number | null;
 }
 
 const SESSION_CONVERSATION_KEY = "versioned-chat.current-conversation";
@@ -219,38 +229,58 @@ export class HttpConversationGateway implements ConversationGateway {
     return this.getHistory(input.conversationId);
   }
 
-  async streamMessage(
+  async startMessageGeneration(
     input: SendMessageInput & { generationId: string },
-    onEvent: (event: ChatStreamEvent) => void,
-  ): Promise<ConversationView> {
-    await streamChatRequest(
+  ): Promise<void> {
+    await apiRequest(
       `/conversations/${encodeURIComponent(input.conversationId)}` +
-        "/turns/stream",
+        "/turns/generations",
       {
-        generation_id: input.generationId,
-        message: input.content,
-        branch_id: input.branchId,
+        method: "POST",
+        body: JSON.stringify({
+          generation_id: input.generationId,
+          message: input.content,
+          branch_id: input.branchId,
+        }),
       },
-      onEvent,
     );
-    return this.getHistory(input.conversationId);
   }
 
-  async streamRewriteUserMessage(
+  async startRewriteGeneration(
     input: RewriteUserMessageInput & { generationId: string },
-    onEvent: (event: ChatStreamEvent) => void,
-  ): Promise<ConversationView> {
-    await streamChatRequest(
+  ): Promise<void> {
+    await apiRequest(
       `/conversations/${encodeURIComponent(input.conversationId)}` +
-        `/turns/${encodeURIComponent(input.turnId)}/rewrite/stream`,
+        `/turns/${encodeURIComponent(input.turnId)}/rewrite/generations`,
       {
-        generation_id: input.generationId,
-        message: input.content,
-        source_branch_id: input.sourceBranchId,
+        method: "POST",
+        body: JSON.stringify({
+          generation_id: input.generationId,
+          message: input.content,
+          source_branch_id: input.sourceBranchId,
+        }),
       },
-      onEvent,
     );
-    return this.getHistory(input.conversationId);
+  }
+
+  async getGeneration(generationId: string): Promise<GenerationSnapshot> {
+    const result = await apiRequest<GenerationStatusDto>(
+      `/generations/${encodeURIComponent(generationId)}`,
+      { timeoutMs: 5_000 },
+    );
+    return {
+      generationId: result.generation_id,
+      status: result.status,
+      conversationId: result.conversation_id,
+      branchId: result.branch_id,
+      turnId: result.turn_id,
+      content: result.content,
+      durationMs: result.duration_ms,
+      finishReason: result.finish_reason,
+      code: result.error_code ?? undefined,
+      message: result.error_message ?? undefined,
+      errorStatus: result.error_status ?? undefined,
+    };
   }
 
   async stopGeneration(generationId: string): Promise<void> {
@@ -291,150 +321,6 @@ function mapTurn(turn: HistoryTurnDto): ConversationTurn {
     variantIndex: turn.variant_index + 1,
     variantCount: turn.variant_count,
   };
-}
-
-interface StreamErrorPayload {
-  error?: { code?: string; message?: string };
-  detail?: string | Array<{ msg?: string }>;
-}
-
-async function streamChatRequest(
-  path: string,
-  body: Record<string, unknown>,
-  onEvent: (event: ChatStreamEvent) => void,
-): Promise<void> {
-  let response: Response;
-
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      method: "POST",
-      credentials: "include",
-      headers: {
-        Accept: "text/event-stream",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-  } catch {
-    throw new ApiRequestError(
-      "无法连接后端，请确认 FastAPI 已在 8000 端口启动",
-      0,
-      "network_error",
-    );
-  }
-
-  if (!response.ok) {
-    if (response.status === 401) {
-      window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
-    }
-    const payload = (await response.json().catch(() => null)) as
-      | StreamErrorPayload
-      | null;
-    const validationMessage = Array.isArray(payload?.detail)
-      ? payload.detail[0]?.msg
-      : payload?.detail;
-    throw new ApiRequestError(
-      payload?.error?.message ||
-        validationMessage ||
-        `后端请求失败（${response.status}）`,
-      response.status,
-      payload?.error?.code,
-    );
-  }
-
-  if (!response.body) {
-    throw new ApiRequestError(
-      "浏览器没有收到流式响应内容",
-      502,
-      "llm_response_error",
-    );
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let terminalReceived = false;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    buffer += decoder.decode(value, { stream: !done });
-    buffer = buffer.replace(/\r\n/g, "\n");
-
-    let separatorIndex = buffer.indexOf("\n\n");
-    while (separatorIndex >= 0) {
-      const rawEvent = buffer.slice(0, separatorIndex);
-      buffer = buffer.slice(separatorIndex + 2);
-      const event = parseSseEvent(rawEvent);
-      if (event) {
-        onEvent(event);
-        if (event.type === "failed") {
-          throw new ApiRequestError(
-            event.message ?? "流式回答生成失败",
-            event.status ?? 500,
-            event.code,
-          );
-        }
-        if (event.type === "completed" || event.type === "stopped") {
-          terminalReceived = true;
-        }
-      }
-      separatorIndex = buffer.indexOf("\n\n");
-    }
-
-    if (done) {
-      break;
-    }
-  }
-
-  if (!terminalReceived) {
-    throw new ApiRequestError(
-      "流式连接提前结束，请重试当前消息",
-      502,
-      "llm_response_error",
-    );
-  }
-}
-
-function parseSseEvent(rawEvent: string): ChatStreamEvent | null {
-  let eventType = "message";
-  const dataLines: string[] = [];
-
-  for (const line of rawEvent.split("\n")) {
-    if (line.startsWith("event:")) {
-      eventType = line.slice(6).trim();
-    } else if (line.startsWith("data:")) {
-      dataLines.push(line.slice(5).trimStart());
-    }
-  }
-
-  if (dataLines.length === 0) {
-    return null;
-  }
-
-  const payload = JSON.parse(dataLines.join("\n")) as Record<string, unknown>;
-  return {
-    type: eventType as ChatStreamEvent["type"],
-    generationId: String(payload.generation_id ?? ""),
-    conversationId: optionalString(payload.conversation_id),
-    branchId: optionalString(payload.branch_id),
-    turnId: optionalString(payload.turn_id),
-    content: optionalString(payload.content),
-    durationMs: optionalNumber(payload.duration_ms),
-    finishReason: optionalString(payload.finish_reason) as
-      | ChatStreamEvent["finishReason"]
-      | undefined,
-    code: optionalString(payload.code),
-    message: optionalString(payload.message),
-    status: optionalNumber(payload.status),
-  };
-}
-
-function optionalString(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
-
-function optionalNumber(value: unknown): number | undefined {
-  return typeof value === "number" ? value : undefined;
 }
 
 function buildConversationTitle(turns: ConversationTurn[]): string {

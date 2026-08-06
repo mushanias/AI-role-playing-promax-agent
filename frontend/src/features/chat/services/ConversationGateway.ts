@@ -2,7 +2,7 @@ import type {
   DeletedConversationSummary,
   ConversationView,
   ConversationSummary,
-  ChatStreamEvent,
+  GenerationSnapshot,
   RewriteUserMessageInput,
   SelectVariantInput,
   SendMessageInput,
@@ -27,15 +27,15 @@ export interface ConversationGateway {
 
   sendMessage(input: SendMessageInput): Promise<ConversationView>;
 
-  streamMessage(
+  startMessageGeneration(
     input: SendMessageInput & { generationId: string },
-    onEvent: (event: ChatStreamEvent) => void,
-  ): Promise<ConversationView>;
+  ): Promise<void>;
 
-  streamRewriteUserMessage(
+  startRewriteGeneration(
     input: RewriteUserMessageInput & { generationId: string },
-    onEvent: (event: ChatStreamEvent) => void,
-  ): Promise<ConversationView>;
+  ): Promise<void>;
+
+  getGeneration(generationId: string): Promise<GenerationSnapshot>;
 
   stopGeneration(generationId: string): Promise<void>;
 }

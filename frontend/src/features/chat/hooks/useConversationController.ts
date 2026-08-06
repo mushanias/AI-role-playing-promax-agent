@@ -11,9 +11,10 @@ import type {
   ConversationSummary,
   ConversationView,
   DeletedConversationSummary,
-  ChatStreamEvent,
+  GenerationSnapshot,
   PendingRequest,
 } from "../model/types";
+import { ApiRequestError } from "../../../shared/api/ApiClient";
 import type { UserFacingError } from "../model/userFacingError";
 import type { ConversationGateway } from "../services/ConversationGateway";
 import { toUserFacingError } from "../services/errorPresentation";
@@ -41,8 +42,13 @@ export interface ConversationController {
   selectVariant(turnId: string, direction: -1 | 1): Promise<void>;
   sendMessage(content: string): Promise<void>;
   stopGeneration(): Promise<void>;
+  refresh(): Promise<void>;
   dismissError(): void;
 }
+
+const PENDING_GENERATION_KEY = "versioned-chat.pending-generation";
+const GENERATION_POLL_INTERVAL_MS = 400;
+const GENERATION_RETRY_INTERVAL_MS = 1_000;
 
 export function useConversationController(
   gateway: ConversationGateway,
@@ -58,7 +64,7 @@ export function useConversationController(
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<UserFacingError | null>(null);
   const [pendingRequest, setPendingRequest] = useState<PendingRequest | null>(
-    null,
+    readPendingRequest,
   );
   const [failedRequestContent, setFailedRequestContent] = useState<
     string | null
@@ -66,46 +72,127 @@ export function useConversationController(
   const [editingTurnId, setEditingTurnId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
   const activeConversationIdRef = useRef<string | null>(null);
+  const pendingRequestRef = useRef<PendingRequest | null>(pendingRequest);
 
   useEffect(() => {
     activeConversationIdRef.current = view?.conversationId ?? null;
   }, [view]);
 
   useEffect(() => {
-    let isActive = true;
+    pendingRequestRef.current = pendingRequest;
+    try {
+      if (pendingRequest === null) {
+        window.sessionStorage.removeItem(PENDING_GENERATION_KEY);
+      } else {
+        window.sessionStorage.setItem(
+          PENDING_GENERATION_KEY,
+          JSON.stringify(pendingRequest),
+        );
+      }
+    } catch {
+      // 存储不可用时仍保持当前页面内的轮询，不影响生成流程。
+    }
+  }, [pendingRequest]);
 
-    gateway
-      .getConversation()
-      .then(async (nextView) => {
-        const [conversations, deletedConversations] = await Promise.all([
-          gateway.listConversations(),
-          gateway.listDeletedConversations(),
-        ]);
-        return { nextView, conversations, deletedConversations };
-      })
-      .then(({ nextView, conversations, deletedConversations }) => {
+  const loadConversationData = useCallback(
+    async (showInitialLoading: boolean): Promise<void> => {
+      if (showInitialLoading) {
+        setIsLoading(true);
+      }
+      try {
+        const [nextView, conversations, deletedConversations] =
+          await Promise.all([
+            gateway.getConversation(),
+            gateway.listConversations(),
+            gateway.listDeletedConversations(),
+          ]);
+        setView(nextView);
+        setConversationList(conversations);
+        setDeletedConversationList(deletedConversations);
+        setError(null);
+      } catch (reason: unknown) {
+        setError(toUserFacingError(reason));
+      } finally {
+        if (showInitialLoading) {
+          setIsLoading(false);
+        }
+      }
+    },
+    [gateway],
+  );
+
+  const refresh = useCallback(
+    () => loadConversationData(false),
+    [loadConversationData],
+  );
+
+  useEffect(() => {
+    void loadConversationData(true);
+  }, [loadConversationData]);
+
+  useEffect(() => {
+    const resume = () => {
+      if (
+        document.visibilityState === "visible" &&
+        pendingRequestRef.current === null
+      ) {
+        void refresh();
+      }
+    };
+
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("pageshow", resume);
+    return () => {
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("pageshow", resume);
+    };
+  }, [refresh]);
+
+  useEffect(() => {
+    const generationId = pendingRequest?.generationId;
+    const requestContent = pendingRequest?.content ?? null;
+    if (!generationId) {
+      return;
+    }
+
+    let isActive = true;
+    void pollGeneration(
+      gateway,
+      generationId,
+      () => isActive,
+      (snapshot) => {
         if (isActive) {
-          setView(nextView);
-          setConversationList(conversations);
-          setDeletedConversationList(deletedConversations);
-          setError(null);
+          applyGenerationSnapshot(snapshot, generationId, setPendingRequest);
+        }
+      },
+    )
+      .then(async () => {
+        if (isActive) {
+          await refresh();
         }
       })
-      .catch((reason: unknown) => {
+      .catch(async (reason: unknown) => {
+        if (!isActive) {
+          return;
+        }
+        await refresh();
         if (isActive) {
           setError(toUserFacingError(reason));
+          setFailedRequestContent(requestContent);
         }
       })
       .finally(() => {
         if (isActive) {
-          setIsLoading(false);
+          setPendingRequest((current) =>
+            current?.generationId === generationId ? null : current,
+          );
         }
       });
 
     return () => {
       isActive = false;
     };
-  }, [gateway]);
+  }, [gateway, pendingRequest?.generationId, refresh]);
 
   const startEditing = useCallback(
     (turnId: string) => {
@@ -249,6 +336,7 @@ export function useConversationController(
       !view ||
       !editingTurnId ||
       !editingContent.trim() ||
+      isSubmitting ||
       pendingRequest
     ) {
       return;
@@ -272,41 +360,41 @@ export function useConversationController(
       ...view,
       turns: view.turns.slice(0, targetIndex),
     });
-    setPendingRequest({
-      conversationId: view.conversationId,
-      generationId,
-      content: normalizedContent,
-      assistantContent: "",
-      startedAt: Date.now(),
-      status: "starting",
-    });
+    setIsSubmitting(true);
 
     try {
-      const nextView = await gateway.streamRewriteUserMessage(
-        {
-          conversationId: view.conversationId,
-          sourceBranchId: view.activeBranchId,
-          turnId: editingTurnId,
-          content: normalizedContent,
-          generationId,
-        },
-        (event) => applyStreamEvent(event, generationId, setPendingRequest),
-      );
-      if (activeConversationIdRef.current === view.conversationId) {
-        setView(nextView);
-      }
-      setConversationList(await gateway.listConversations());
+      await gateway.startRewriteGeneration({
+        conversationId: view.conversationId,
+        sourceBranchId: view.activeBranchId,
+        turnId: editingTurnId,
+        content: normalizedContent,
+        generationId,
+      });
+      setPendingRequest({
+        conversationId: view.conversationId,
+        generationId,
+        content: normalizedContent,
+        assistantContent: "",
+        startedAt: Date.now(),
+        status: "starting",
+      });
     } catch (reason: unknown) {
       if (activeConversationIdRef.current === view.conversationId) {
         setView(sourceView);
         setError(toUserFacingError(reason));
+        setFailedRequestContent(normalizedContent);
       }
     } finally {
-      setPendingRequest((current) =>
-        current?.generationId === generationId ? null : current,
-      );
+      setIsSubmitting(false);
     }
-  }, [editingContent, editingTurnId, gateway, pendingRequest, view]);
+  }, [
+    editingContent,
+    editingTurnId,
+    gateway,
+    isSubmitting,
+    pendingRequest,
+    view,
+  ]);
 
   const selectVariant = useCallback(
     async (turnId: string, direction: -1 | 1) => {
@@ -347,6 +435,7 @@ export function useConversationController(
 
       setError(null);
       setFailedRequestContent(null);
+      setIsSubmitting(true);
 
       let targetConversationId: string | null = null;
       const generationId = crypto.randomUUID();
@@ -357,6 +446,12 @@ export function useConversationController(
           activeConversationIdRef.current = targetView.conversationId;
           setView(targetView);
         }
+        await gateway.startMessageGeneration({
+          conversationId: targetView.conversationId,
+          branchId: targetView.activeBranchId,
+          content: normalizedContent,
+          generationId,
+        });
         setPendingRequest({
           conversationId: targetView.conversationId,
           generationId,
@@ -365,21 +460,6 @@ export function useConversationController(
           startedAt: Date.now(),
           status: "starting",
         });
-        const nextView = await gateway.streamMessage(
-          {
-            conversationId: targetView.conversationId,
-            branchId: targetView.activeBranchId,
-            content: normalizedContent,
-            generationId,
-          },
-          (event) => applyStreamEvent(event, generationId, setPendingRequest),
-        );
-        if (
-          activeConversationIdRef.current === targetView.conversationId
-        ) {
-          setView(nextView);
-        }
-        setConversationList(await gateway.listConversations());
       } catch (reason: unknown) {
         if (
           targetConversationId !== null &&
@@ -389,11 +469,7 @@ export function useConversationController(
           setFailedRequestContent(normalizedContent);
         }
       } finally {
-        if (targetConversationId !== null) {
-          setPendingRequest((current) =>
-            current?.generationId === generationId ? null : current,
-          );
-        }
+        setIsSubmitting(false);
       }
     },
     [gateway, isSubmitting, pendingRequest, view],
@@ -445,6 +521,7 @@ export function useConversationController(
     selectVariant,
     sendMessage,
     stopGeneration,
+    refresh,
     dismissError: () => {
       setError(null);
       setFailedRequestContent(null);
@@ -452,12 +529,51 @@ export function useConversationController(
   };
 }
 
-function applyStreamEvent(
-  event: ChatStreamEvent,
+async function pollGeneration(
+  gateway: ConversationGateway,
+  generationId: string,
+  isActive: () => boolean,
+  onSnapshot: (snapshot: GenerationSnapshot) => void,
+): Promise<void> {
+  while (isActive()) {
+    await waitUntilPageVisible();
+    if (!isActive()) {
+      return;
+    }
+
+    let snapshot: GenerationSnapshot;
+    try {
+      snapshot = await gateway.getGeneration(generationId);
+    } catch (reason: unknown) {
+      if (reason instanceof ApiRequestError && reason.status === 0) {
+        await delay(GENERATION_RETRY_INTERVAL_MS);
+        continue;
+      }
+      throw reason;
+    }
+
+    onSnapshot(snapshot);
+    if (snapshot.status === "failed") {
+      throw new ApiRequestError(
+        snapshot.message ?? "回答生成失败",
+        snapshot.errorStatus ?? 500,
+        snapshot.code,
+      );
+    }
+    if (snapshot.status === "completed" || snapshot.status === "stopped") {
+      return;
+    }
+
+    await delay(GENERATION_POLL_INTERVAL_MS);
+  }
+}
+
+function applyGenerationSnapshot(
+  snapshot: GenerationSnapshot,
   generationId: string,
   setPendingRequest: Dispatch<SetStateAction<PendingRequest | null>>,
 ): void {
-  if (event.generationId !== generationId) {
+  if (snapshot.generationId !== generationId) {
     return;
   }
 
@@ -465,16 +581,63 @@ function applyStreamEvent(
     if (!current || current.generationId !== generationId) {
       return current;
     }
-    if (event.type === "started") {
-      return { ...current, status: "streaming" };
-    }
-    if (event.type === "delta" && event.content) {
-      return {
-        ...current,
-        status: "streaming",
-        assistantContent: current.assistantContent + event.content,
-      };
-    }
-    return current;
+    return {
+      ...current,
+      status:
+        snapshot.status === "starting"
+          ? "starting"
+          : snapshot.status === "stopped"
+            ? "stopping"
+            : "streaming",
+      assistantContent: snapshot.content,
+    };
   });
+}
+
+function waitUntilPageVisible(): Promise<void> {
+  if (document.visibilityState === "visible") {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    const resume = () => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("pageshow", resume);
+      resolve();
+    };
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("pageshow", resume);
+  });
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+  });
+}
+
+function readPendingRequest(): PendingRequest | null {
+  try {
+    const raw = window.sessionStorage.getItem(PENDING_GENERATION_KEY);
+    if (!raw) {
+      return null;
+    }
+    const value = JSON.parse(raw) as Partial<PendingRequest>;
+    if (
+      typeof value.conversationId !== "string" ||
+      typeof value.generationId !== "string" ||
+      typeof value.content !== "string" ||
+      typeof value.assistantContent !== "string" ||
+      typeof value.startedAt !== "number" ||
+      !["starting", "streaming", "stopping"].includes(value.status ?? "")
+    ) {
+      return null;
+    }
+    return value as PendingRequest;
+  } catch {
+    return null;
+  }
 }

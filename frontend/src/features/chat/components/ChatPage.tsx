@@ -38,6 +38,7 @@ export function ChatPage({
     selectVariant,
     sendMessage,
     stopGeneration,
+    refresh,
     dismissError,
   } = controller;
   const [previewMode, setPreviewMode] = useState(readPreviewMode);
@@ -140,7 +141,7 @@ export function ChatPage({
                         } else if (failedRequestContent) {
                           void sendMessage(failedRequestContent);
                         } else {
-                          window.location.reload();
+                          void refresh();
                         }
                       }
                     : undefined

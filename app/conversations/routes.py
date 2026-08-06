@@ -1,14 +1,11 @@
-"""版本化会话、原文历史、流式回答与会话分支 HTTP 接口。"""
+"""版本化会话、后台增量生成、原文历史与会话分支 HTTP 接口。"""
 
 import asyncio
-import json
 import logging
 from collections.abc import AsyncIterator
-from contextlib import suppress
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query, Request, Response, status
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
 from app.auth import require_local_user
 from app.core.dependencies import (
@@ -24,6 +21,7 @@ from app.conversations.conversation_view import ConversationHistory
 from app.conversations.generation_registry import (
     GenerationControl,
     GenerationRegistry,
+    GenerationSnapshot,
 )
 from app.conversations.schemas import (
     BranchActivationResponse,
@@ -34,11 +32,13 @@ from app.conversations.schemas import (
     ConversationSummaryResponse,
     DeletedConversationListResponse,
     DeletedConversationSummaryResponse,
+    GenerationStartResponse,
+    GenerationStatusResponse,
     HistoryTurnResponse,
     RewriteTurnRequest,
     SendTurnRequest,
-    StreamRewriteTurnRequest,
-    StreamSendTurnRequest,
+    StartGenerationRequest,
+    StartRewriteGenerationRequest,
     TurnVariantResponse,
     TurnVariantsResponse,
 )
@@ -164,27 +164,36 @@ async def send_turn(
     return _chat_turn_response(result)
 
 
-@router.post("/{conversation_id}/turns/stream")
-async def stream_turn(
+@router.post(
+    "/{conversation_id}/turns/generations",
+    response_model=GenerationStartResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def start_turn_generation(
     conversation_id: str,
-    stream_request: StreamSendTurnRequest,
-    request: Request,
+    generation_request: StartGenerationRequest,
     service: ConversationService = Depends(get_conversation_service),
     registry: GenerationRegistry = Depends(get_generation_registry),
-) -> StreamingResponse:
-    control = await registry.register(stream_request.generation_id)
+) -> GenerationStartResponse:
+    control = await registry.register(
+        generation_request.generation_id,
+        conversation_id,
+    )
     events = service.stream_message(
         conversation_id=conversation_id,
-        user_input=stream_request.message,
-        generation_id=stream_request.generation_id,
+        user_input=generation_request.message,
+        generation_id=generation_request.generation_id,
         stop_event=control.stop_event,
-        branch_id=stream_request.branch_id,
+        branch_id=generation_request.branch_id,
     )
-    return _streaming_response(
-        request=request,
+    await _start_background_generation(
         events=events,
         control=control,
         registry=registry,
+    )
+    return GenerationStartResponse(
+        generation_id=generation_request.generation_id,
+        status="starting",
     )
 
 
@@ -207,29 +216,38 @@ async def rewrite_turn(
     return _chat_turn_response(result)
 
 
-@router.post("/{conversation_id}/turns/{turn_id}/rewrite/stream")
-async def stream_rewrite_turn(
+@router.post(
+    "/{conversation_id}/turns/{turn_id}/rewrite/generations",
+    response_model=GenerationStartResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def start_rewrite_generation(
     conversation_id: str,
     turn_id: str,
-    stream_request: StreamRewriteTurnRequest,
-    request: Request,
+    generation_request: StartRewriteGenerationRequest,
     service: ConversationService = Depends(get_conversation_service),
     registry: GenerationRegistry = Depends(get_generation_registry),
-) -> StreamingResponse:
-    control = await registry.register(stream_request.generation_id)
+) -> GenerationStartResponse:
+    control = await registry.register(
+        generation_request.generation_id,
+        conversation_id,
+    )
     events = service.stream_rewrite_turn(
         conversation_id=conversation_id,
         target_turn_id=turn_id,
-        user_input=stream_request.message,
-        generation_id=stream_request.generation_id,
+        user_input=generation_request.message,
+        generation_id=generation_request.generation_id,
         stop_event=control.stop_event,
-        source_branch_id=stream_request.source_branch_id,
+        source_branch_id=generation_request.source_branch_id,
     )
-    return _streaming_response(
-        request=request,
+    await _start_background_generation(
         events=events,
         control=control,
         registry=registry,
+    )
+    return GenerationStartResponse(
+        generation_id=generation_request.generation_id,
+        status="starting",
     )
 
 
@@ -244,6 +262,23 @@ async def stop_generation(
     """幂等地停止当前进程内的一次流式生成。"""
     await registry.request_stop(generation_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@generations_router.get(
+    "/{generation_id}",
+    response_model=GenerationStatusResponse,
+)
+async def get_generation_status(
+    generation_id: str,
+    registry: GenerationRegistry = Depends(get_generation_registry),
+) -> GenerationStatusResponse:
+    snapshot = await registry.get_snapshot(generation_id)
+    if snapshot is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="生成任务不存在或已过期",
+        )
+    return _generation_status_response(snapshot)
 
 
 @router.get(
@@ -331,106 +366,98 @@ def _history_response(
     )
 
 
-def _streaming_response(
+async def _start_background_generation(
     *,
-    request: Request,
     events: AsyncIterator[ChatStreamEvent],
     control: GenerationControl,
     registry: GenerationRegistry,
-) -> StreamingResponse:
-    return StreamingResponse(
-        _stream_sse_events(
-            request=request,
+) -> None:
+    task = asyncio.create_task(
+        _consume_generation_events(
             events=events,
             control=control,
             registry=registry,
-        ),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",
-        },
+        )
     )
+    await registry.attach_task(control.generation_id, control, task)
 
 
-async def _stream_sse_events(
+async def _consume_generation_events(
     *,
-    request: Request,
     events: AsyncIterator[ChatStreamEvent],
     control: GenerationControl,
     registry: GenerationRegistry,
-) -> AsyncIterator[str]:
-    disconnect_watcher = asyncio.create_task(
-        _watch_disconnect(request, control)
-    )
+) -> None:
+    terminal_received = False
     try:
         async for event in events:
-            yield _encode_sse(event.type, _event_payload(event))
+            await registry.apply_event(
+                control.generation_id,
+                control,
+                event,
+            )
+            if event.type in {"completed", "stopped"}:
+                terminal_received = True
+
+        if not terminal_received:
+            await registry.mark_failed(
+                control.generation_id,
+                control,
+                code="incomplete_generation",
+                message="生成任务未返回完成状态",
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
     except BaseAppException as error:
         descriptor = map_app_exception(error)
-        yield _encode_sse(
-            "failed",
-            {
-                "generation_id": control.generation_id,
-                "code": descriptor.code,
-                "message": descriptor.message,
-                "status": descriptor.status_code,
-            },
+        await registry.mark_failed(
+            control.generation_id,
+            control,
+            code=descriptor.code,
+            message=descriptor.message,
+            status=descriptor.status_code,
         )
     except asyncio.CancelledError:
         control.request_stop()
+        await registry.mark_failed(
+            control.generation_id,
+            control,
+            code="generation_interrupted",
+            message="生成任务因服务停止而中断",
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
         raise
     except Exception:
         logger.exception(
-            "流式生成发生未处理异常：generation=%s",
+            "后台生成发生未处理异常：generation=%s",
             control.generation_id,
         )
-        yield _encode_sse(
-            "failed",
-            {
-                "generation_id": control.generation_id,
-                "code": "internal_server_error",
-                "message": "后端处理流式回答时发生内部错误",
-                "status": 500,
-            },
+        await registry.mark_failed(
+            control.generation_id,
+            control,
+            code="internal_server_error",
+            message="后端处理生成任务时发生内部错误",
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
     finally:
-        disconnect_watcher.cancel()
-        with suppress(asyncio.CancelledError):
-            await disconnect_watcher
-        await registry.release(control.generation_id, control)
+        await registry.finish_task(control.generation_id, control)
 
 
-async def _watch_disconnect(
-    request: Request,
-    control: GenerationControl,
-) -> None:
-    while not control.stop_event.is_set():
-        if await request.is_disconnected():
-            control.request_stop()
-            return
-        await asyncio.sleep(0.1)
-
-
-def _event_payload(event: ChatStreamEvent) -> dict[str, object]:
-    payload: dict[str, object] = {
-        "generation_id": event.generation_id,
-        "conversation_id": event.conversation_id,
-        "branch_id": event.branch_id,
-        "turn_id": event.turn_id,
-    }
-    if event.content is not None:
-        payload["content"] = event.content
-    if event.duration_ms is not None:
-        payload["duration_ms"] = event.duration_ms
-    if event.type in {"completed", "stopped"}:
-        payload["finish_reason"] = event.type
-        payload["warnings"] = list(event.warnings)
-        payload["compression_passes"] = event.compression_passes
-        payload["quality_degraded"] = event.quality_degraded
-    return payload
-
-
-def _encode_sse(event: str, payload: dict[str, object]) -> str:
-    data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    return f"event: {event}\ndata: {data}\n\n"
+def _generation_status_response(
+    snapshot: GenerationSnapshot,
+) -> GenerationStatusResponse:
+    return GenerationStatusResponse(
+        generation_id=snapshot.generation_id,
+        status=snapshot.status,
+        conversation_id=snapshot.conversation_id,
+        branch_id=snapshot.branch_id,
+        turn_id=snapshot.turn_id,
+        content=snapshot.content,
+        duration_ms=snapshot.duration_ms,
+        finish_reason=snapshot.finish_reason,
+        warnings=list(snapshot.warnings),
+        compression_passes=snapshot.compression_passes,
+        quality_degraded=snapshot.quality_degraded,
+        error_code=snapshot.error_code,
+        error_message=snapshot.error_message,
+        error_status=snapshot.error_status,
+    )

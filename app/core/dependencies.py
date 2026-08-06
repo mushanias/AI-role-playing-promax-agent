@@ -53,7 +53,7 @@ def get_performance_recorder() -> CsvPerformanceRecorder:
 
 @lru_cache
 def get_generation_registry() -> GenerationRegistry:
-    """提供流式生成与停止接口共享的进程内注册表。"""
+    """提供后台生成、状态查询与停止接口共享的进程内注册表。"""
     return GenerationRegistry()
 
 

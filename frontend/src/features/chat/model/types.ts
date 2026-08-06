@@ -62,23 +62,23 @@ export interface PendingRequest {
   status: "starting" | "streaming" | "stopping";
 }
 
-export type ChatStreamEventType =
-  | "started"
-  | "delta"
+export type GenerationStatus =
+  | "starting"
+  | "streaming"
   | "completed"
   | "stopped"
   | "failed";
 
-export interface ChatStreamEvent {
-  type: ChatStreamEventType;
+export interface GenerationSnapshot {
   generationId: string;
-  conversationId?: string;
-  branchId?: string;
-  turnId?: string;
-  content?: string;
-  durationMs?: number;
-  finishReason?: TurnFinishReason;
+  status: GenerationStatus;
+  conversationId: string;
+  branchId: string | null;
+  turnId: string | null;
+  content: string;
+  durationMs: number | null;
+  finishReason: TurnFinishReason | null;
   code?: string;
   message?: string;
-  status?: number;
+  errorStatus?: number;
 }
