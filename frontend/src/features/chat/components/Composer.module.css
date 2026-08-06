@@ -35,10 +35,6 @@
   outline-offset: 0;
 }
 
-.textarea:disabled {
-  cursor: wait;
-}
-
 .sendButton {
   width: 36px;
   height: 36px;

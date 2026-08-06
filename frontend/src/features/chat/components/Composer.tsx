@@ -44,7 +44,7 @@ export function Composer({
         ref={textareaRef}
         className={styles.textarea}
         value={value}
-        disabled={disabled || generating}
+        aria-busy={disabled || generating}
         aria-label="输入消息"
         placeholder="询问任何问题"
         rows={1}

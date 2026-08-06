@@ -19,6 +19,7 @@ export function LoginPage({
   const [username, setUsername] = useState("123456");
   const [password, setPassword] = useState("");
   const busy = checking || submitting;
+  const inputsDisabled = submitting;
 
   return (
     <main className={styles.page}>
@@ -44,7 +45,7 @@ export function LoginPage({
             <input
               value={username}
               autoComplete="username"
-              disabled={busy}
+              disabled={inputsDisabled}
               onChange={(event) => setUsername(event.target.value)}
             />
           </label>
@@ -55,7 +56,7 @@ export function LoginPage({
               value={password}
               autoComplete="current-password"
               autoFocus={!checking}
-              disabled={busy}
+              disabled={inputsDisabled}
               onChange={(event) => setPassword(event.target.value)}
             />
           </label>
