@@ -238,6 +238,33 @@ class VersionedCompressionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(compressor.requests), 1)
         self.assertEqual(len(compressor.requests[0].messages_to_compress), 6)
 
+    async def test_prefix_affects_budget_but_is_not_sent_to_compressor(self) -> None:
+        conversation = conversation_with_summary()
+        await self.repository.create(conversation)
+        compressor = RecordingCompressor()
+        _, _, service = build_services(
+            self.repository,
+            compressor,
+            high_watermark=75,
+            low_watermark=55,
+        )
+        prefix = ({"role": "system", "content": "固定事实前缀"},)
+
+        outcome = await service.compress_if_needed(
+            conversation_id="conversation-1",
+            branch_id="branch-main",
+            prefix_messages=prefix,
+        )
+
+        self.assertTrue(outcome.compressed)
+        self.assertEqual(outcome.candidate.messages[0], prefix[0])
+        self.assertEqual(len(compressor.requests), 1)
+        compressed_text = "\n".join(
+            message["content"]
+            for message in compressor.requests[0].messages_to_compress
+        )
+        self.assertNotIn("固定事实前缀", compressed_text)
+
     async def test_stale_compression_result_is_discarded(self) -> None:
         await self.repository.create(conversation_with_summary())
         compressor = AdvancingCompressor(

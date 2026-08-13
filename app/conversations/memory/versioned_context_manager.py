@@ -1,7 +1,8 @@
 """读取分支 Context，并在主对话调用前完成同步压缩编排。"""
 
-from typing import Dict, Optional, Protocol
+from typing import Dict, Optional, Protocol, Tuple
 
+from app.context import ContextPrefixProvider, ContextPrefixRequest
 from app.conversations.conversation_repository import ConversationRepository
 from app.conversations.memory.compression_plan import VersionedCompressionOutcome
 from app.conversations.memory.context_plan import (
@@ -19,6 +20,7 @@ class VersionedCompressionCoordinator(Protocol):
         self,
         conversation_id: str,
         branch_id: str,
+        prefix_messages: Tuple[Dict[str, str], ...] = (),
     ) -> VersionedCompressionOutcome:
         ...
 
@@ -32,6 +34,7 @@ class VersionedContextManager:
         context_planner: ContextPlanner,
         compression_service: VersionedCompressionCoordinator,
         max_compression_passes: int,
+        prefix_provider: Optional[ContextPrefixProvider] = None,
     ) -> None:
         if max_compression_passes < 1:
             raise ValueError("最大压缩次数必须大于 0")
@@ -40,6 +43,7 @@ class VersionedContextManager:
         self.context_planner = context_planner
         self.compression_service = compression_service
         self.max_compression_passes = max_compression_passes
+        self.prefix_provider = prefix_provider
 
     async def build(
         self,
@@ -47,9 +51,14 @@ class VersionedContextManager:
         branch_id: Optional[str] = None,
     ) -> ManagedContext:
         """同步压缩当前分支，并始终返回可继续处理的 Context。"""
+        prefix_messages = await self._get_prefix_messages(
+            conversation_id=conversation_id,
+            branch_id=branch_id,
+        )
         candidate = await self._build_candidate(
             conversation_id=conversation_id,
             branch_id=branch_id,
+            prefix_messages=prefix_messages,
         )
         selected_branch_id = candidate.plan.branch_id
         warnings = []
@@ -63,6 +72,7 @@ class VersionedContextManager:
                 await self.compression_service.compress_if_needed(
                     conversation_id=conversation_id,
                     branch_id=selected_branch_id,
+                    prefix_messages=prefix_messages,
                 )
             )
             compression_passes += 1
@@ -100,11 +110,27 @@ class VersionedContextManager:
         self,
         conversation_id: str,
         branch_id: Optional[str],
+        prefix_messages: Tuple[Dict[str, str], ...],
     ) -> ContextCandidate:
         conversation = await self.repository.load(conversation_id)
         return self.context_planner.build_candidate(
             conversation=conversation,
             branch_id=branch_id,
+            prefix_messages=prefix_messages,
+        )
+
+    async def _get_prefix_messages(
+        self,
+        conversation_id: str,
+        branch_id: Optional[str],
+    ) -> Tuple[Dict[str, str], ...]:
+        if self.prefix_provider is None:
+            return ()
+        return await self.prefix_provider.get_messages(
+            ContextPrefixRequest(
+                conversation_id=conversation_id,
+                branch_id=branch_id,
+            )
         )
 
     def _build_limit_warning(self, compression_passes: int) -> str:
@@ -134,6 +160,7 @@ class VersionedContextManager:
                     summary=plan.summary,
                     raw_turns=raw_turns[drop_count:],
                     pending_turn=plan.pending_turn,
+                    prefix_messages=plan.prefix_messages,
                 ),
             )
             if degraded.estimated_tokens <= candidate.high_watermark:
@@ -151,6 +178,7 @@ class VersionedContextManager:
                     summary=None,
                     raw_turns=(),
                     pending_turn=plan.pending_turn,
+                    prefix_messages=plan.prefix_messages,
                 ),
             )
         )

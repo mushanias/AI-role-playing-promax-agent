@@ -1,6 +1,6 @@
 """分支 Context 规划：解析当前历史链并执行质量水位判断。"""
 
-from typing import List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from app.exceptions import BranchNotFoundError
 from app.conversations.conversation import Branch, Conversation, Turn
@@ -38,6 +38,7 @@ class ContextPlanner:
         self,
         conversation: Conversation,
         branch_id: Optional[str] = None,
+        prefix_messages: Tuple[Dict[str, str], ...] = (),
     ) -> ContextCandidate:
         """选择指定分支 Context，并用实际 messages 判断水位。"""
         selected_branch_id = branch_id or conversation.active_branch_id
@@ -75,6 +76,7 @@ class ContextPlanner:
             summary=summary,
             raw_turns=tuple(raw_turns),
             pending_turn=pending_turn,
+            prefix_messages=prefix_messages,
         )
         built = self.context_builder.build_from_plan(plan)
 

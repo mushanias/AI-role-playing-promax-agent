@@ -44,6 +44,7 @@ class RecordingCompressionService:
         self,
         conversation_id,
         branch_id,
+        prefix_messages=(),
     ):
         self.calls.append((conversation_id, branch_id))
         if not self.outcomes:
@@ -162,6 +163,26 @@ class VersionedContextManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result.quality_degraded)
         self.assertEqual(compression_service.calls, [])
         self.assertEqual(result.candidate.plan.branch_id, "branch-main")
+
+    async def test_prefix_is_injected_once_before_conversation(self) -> None:
+        class PrefixProvider:
+            async def get_messages(self, request):
+                return ({"role": "system", "content": "固定事实"},)
+
+        compression_service = RecordingCompressionService([])
+        manager = self.build_manager(compression_service)
+        manager.prefix_provider = PrefixProvider()
+
+        result = await manager.build("conversation-1")
+
+        self.assertEqual(result.messages[0]["content"], "固定事实")
+        self.assertEqual(
+            sum(
+                message["content"] == "固定事实"
+                for message in result.messages
+            ),
+            1,
+        )
 
     async def test_explicit_branch_id_selects_target_branch(self) -> None:
         compression_service = RecordingCompressionService([])

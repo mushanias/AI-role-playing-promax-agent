@@ -124,6 +124,7 @@ class CompressionBatchPlanner:
             summary=None,
             raw_turns=raw_turns_to_keep,
             pending_turn=candidate.plan.pending_turn,
+            prefix_messages=candidate.plan.prefix_messages,
         )
         return self.context_builder.build_from_plan(
             plan=plan_without_summary,
@@ -179,12 +180,14 @@ class VersionedContextCompressionService:
         self,
         conversation_id: str,
         branch_id: str,
+        prefix_messages: Tuple[Dict[str, str], ...] = (),
     ) -> VersionedCompressionOutcome:
         """同步执行至多一次追加式压缩。"""
         conversation = await self.repository.load(conversation_id)
         candidate = self.context_planner.build_candidate(
             conversation=conversation,
             branch_id=branch_id,
+            prefix_messages=prefix_messages,
         )
         if not candidate.needs_compression:
             return VersionedCompressionOutcome(
@@ -241,6 +244,7 @@ class VersionedContextCompressionService:
             current_candidate = self.context_planner.build_candidate(
                 conversation=current,
                 branch_id=branch_id,
+                prefix_messages=prefix_messages,
             )
             return VersionedCompressionOutcome(
                 candidate=current_candidate,
@@ -253,6 +257,7 @@ class VersionedContextCompressionService:
         updated_candidate = self.context_planner.build_candidate(
             conversation=updated,
             branch_id=branch_id,
+            prefix_messages=prefix_messages,
         )
         return VersionedCompressionOutcome(
             candidate=updated_candidate,

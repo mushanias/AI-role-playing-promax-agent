@@ -15,6 +15,7 @@ class ContextPlan:
     summary: Optional[SummaryVersion]
     raw_turns: Tuple[Turn, ...]
     pending_turn: Optional[Turn]
+    prefix_messages: Tuple[Dict[str, str], ...] = ()
 
 
 @dataclass(frozen=True)

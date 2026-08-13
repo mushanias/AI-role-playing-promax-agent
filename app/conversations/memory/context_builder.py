@@ -41,7 +41,9 @@ class ContextBuilder:
             plan.summary.content if plan.summary is not None else ""
         )
         system_content = self._build_system_content(summary_content)
-        messages: List[Dict[str, str]] = []
+        messages: List[Dict[str, str]] = [
+            dict(message) for message in plan.prefix_messages
+        ]
 
         if system_content:
             messages.append({

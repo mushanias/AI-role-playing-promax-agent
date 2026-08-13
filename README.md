@@ -11,6 +11,7 @@
 - 每个 Branch 使用 `head_turn_id` 标记当前历史终点。
 - 修改旧消息时创建新 Branch，不覆盖原始历史。
 - 摘要采用追加式版本链，不删除原文。
+- 用户维护的不变事实独立保存，每次主对话只注入一次。
 - Context 超过高水位后，按完整 Turn 边界执行同步压缩。
 - 压缩期间会校验 HEAD、pending Turn 和活动摘要，丢弃过期结果。
 - 无法安全压缩时只降级本次发送副本，持久化数据保持完整。
@@ -24,6 +25,9 @@ Conversation
 ├── summaries: SummaryVersion 摘要版本索引
 └── active_branch_id: 当前活动分支
 ```
+
+不变事实不属于 Conversation 聚合，也不跟随分支复制。它独立保存为
+`data/fact_sets/default.json`。
 
 ### Turn
 
@@ -67,13 +71,15 @@ content
 一次主对话请求按以下顺序组装：
 
 ```text
-活动摘要（如有）
+不变事实（如有，仅一次）
+→ 活动摘要（如有）
 → 尚未被摘要覆盖的 completed Turn
 → 当前 pending 用户输入
 ```
 
 `pending` Turn 只参与当前主对话，不参与本轮压缩。最终发送给 LLM 的
 messages 不持久化，需要时根据会话状态重新构建。
+不变事实计入总 Context Token，但不会发送给压缩模型，也不会写入历史摘要。
 
 ## 压缩水位
 
@@ -97,6 +103,8 @@ CONTEXT_SAFETY_MARGIN=200
 POST /auth/login
 GET  /auth/session
 POST /auth/logout
+GET  /fact-set
+PUT  /fact-set
 POST /conversations
 DELETE /conversations/{conversation_id}
 GET  /conversations/{conversation_id}/history
@@ -107,7 +115,7 @@ POST /conversations/{conversation_id}/branches/{branch_id}/activate
 GET  /conversations
 ```
 
-`/conversations`、`/llm` 和 `/performance` 接口需要本地登录。认证使用 HttpOnly Cookie，Session 保存在后端内存中，重启后端后需要重新登录。
+`/conversations`、`/fact-set`、`/llm` 和 `/performance` 接口需要本地登录。认证使用 HttpOnly Cookie，Session 保存在后端内存中，重启后端后需要重新登录。
 
 LLM 配置、连接测试和运行时模型切换接口位于 `/llm`。前端默认连接 `http://127.0.0.1:8000`，可通过 `frontend/.env` 中的 `VITE_API_BASE_URL` 覆盖。
 
@@ -142,12 +150,14 @@ app/
 │   └── memory/          Context 规划、压缩和降级
 ├── core/                配置、依赖注入、日志与错误映射
 ├── exceptions/          业务异常
+├── fact_sets/           不变事实、编辑接口与 Context Provider
 ├── llm/                 模型设置、客户端与连接测试
 ├── performance/         旁路性能记录与只读仪表盘
 └── storage/             通用 JSON 文件存储
 
 data/
-└── conversations/       运行时会话数据
+├── conversations/       运行时会话数据
+└── fact_sets/            本地不变事实
 
 test/                    后端自动化测试
 test_frontend.py         最小测试界面

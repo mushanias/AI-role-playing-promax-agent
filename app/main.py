@@ -15,6 +15,7 @@ from app.core.config import CORS_ALLOW_ORIGINS
 from app.core.error_mapping import map_app_exception
 from app.core.logger import setup_logging
 from app.exceptions import BaseAppException
+from app.fact_sets.routes import router as fact_set_router
 from app.llm.routes import router as llm_router
 from app.performance.routes import router as performance_router
 
@@ -51,6 +52,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(conversations_router)
 app.include_router(generations_router)
+app.include_router(fact_set_router)
 app.include_router(llm_router)
 app.include_router(performance_router)
 

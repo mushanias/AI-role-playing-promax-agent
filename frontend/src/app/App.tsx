@@ -7,6 +7,9 @@ import { HttpAuthGateway } from "../features/auth/services/HttpAuthGateway";
 import { ChatPage } from "../features/chat/components/ChatPage";
 import { useConversationController } from "../features/chat/hooks/useConversationController";
 import { HttpConversationGateway } from "../features/chat/services/HttpConversationGateway";
+import { FactSetEditor } from "../features/factSet/components/FactSetEditor";
+import { useFactSetController } from "../features/factSet/hooks/useFactSetController";
+import { HttpFactSetGateway } from "../features/factSet/services/HttpFactSetGateway";
 import { useLLMController } from "../features/llm/hooks/useLLMController";
 import { HttpLLMGateway } from "../features/llm/services/HttpLLMGateway";
 import { Sidebar } from "../features/navigation/components/Sidebar";
@@ -50,13 +53,19 @@ function AuthenticatedApp({
     [],
   );
   const llmGateway = useMemo(() => new HttpLLMGateway(), []);
+  const factSetGateway = useMemo(() => new HttpFactSetGateway(), []);
   const backendStatus = useBackendConnection();
   const controller = useConversationController(conversationGateway);
   const llmController = useLLMController(
     llmGateway,
     backendStatus === "connected",
   );
+  const factSetController = useFactSetController(
+    factSetGateway,
+    backendStatus === "connected",
+  );
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [factSetOpen, setFactSetOpen] = useState(false);
   const [pinnedConversationIds, setPinnedConversationIds] = useState<string[]>(
     readPinnedConversationIds,
   );
@@ -124,6 +133,10 @@ function AuthenticatedApp({
           onSelectModel={llmController.selectModel}
           onConnectProvider={llmController.connectProvider}
           onVerifyLocalConfig={llmController.verifyLocalConfig}
+          onOpenFactSet={() => {
+            setFactSetOpen(true);
+            closeSidebarOnNarrowScreen(setSidebarOpen);
+          }}
           onLogout={onLogout}
         />
       }
@@ -132,6 +145,15 @@ function AuthenticatedApp({
         controller={controller}
         sidebarOpen={sidebarOpen}
         onOpenSidebar={() => setSidebarOpen(true)}
+      />
+      <FactSetEditor
+        open={factSetOpen}
+        value={factSetController.content}
+        loading={factSetController.isLoading}
+        saving={factSetController.isSaving}
+        statusMessage={factSetController.statusMessage}
+        onClose={() => setFactSetOpen(false)}
+        onSave={factSetController.save}
       />
     </AppShell>
   );

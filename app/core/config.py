@@ -15,6 +15,10 @@ PERFORMANCE_METRICS_PATH = os.getenv(
     "PERFORMANCE_METRICS_PATH",
     "data/performance.csv",
 )
+FACT_SET_PATH = os.getenv(
+    "FACT_SET_PATH",
+    "data/fact_sets/default.json",
+)
 
 # 浏览器前端与 API 分离运行时允许的来源。
 CORS_ALLOW_ORIGINS = tuple(

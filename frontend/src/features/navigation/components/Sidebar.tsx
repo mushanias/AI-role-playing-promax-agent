@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   Bot,
+  BookOpenText,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -50,6 +51,7 @@ export interface SidebarProps {
     apiKey: string,
   ): Promise<boolean>;
   onVerifyLocalConfig(): Promise<boolean>;
+  onOpenFactSet(): void;
   onLogout(): Promise<void>;
 }
 
@@ -75,6 +77,7 @@ export function Sidebar({
   onSelectModel,
   onConnectProvider,
   onVerifyLocalConfig,
+  onOpenFactSet,
   onLogout,
 }: SidebarProps) {
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
@@ -161,10 +164,35 @@ export function Sidebar({
           <span className={styles.actionMeta}>{modelMeta}</span>
         </button>
 
-        {modelMenuOpen ? (
-          <div className={styles.inlinePanel}>
-            {selectedProvider ? (
-              <>
+        <button
+          type="button"
+          className={styles.actionButton}
+          onClick={() => {
+            onOpenFactSet();
+            setModelMenuOpen(false);
+            setSelectedProviderId(null);
+            setKeyEditorOpen(false);
+            setTrashOpen(false);
+          }}
+        >
+          <BookOpenText size={17} />
+          <span>不变事实</span>
+          <span className={styles.actionMeta}>独立于对话</span>
+        </button>
+
+        <div
+          className={styles.panelDisclosure}
+          data-open={modelMenuOpen}
+          aria-hidden={!modelMenuOpen}
+        >
+          <div className={styles.panelDisclosureInner}>
+            <div className={styles.inlinePanel}>
+            <div
+              key={selectedProvider?.providerId ?? "provider-list"}
+              className={styles.panelStage}
+            >
+              {selectedProvider ? (
+                <>
                 <button
                   type="button"
                   className={styles.panelBack}
@@ -302,31 +330,33 @@ export function Sidebar({
                 {modelStatusMessage ? (
                   <p className={styles.modelStatus}>{modelStatusMessage}</p>
                 ) : null}
-              </>
-            ) : (
-              providers.map((provider) => (
-                <button
-                  key={provider.providerId}
-                  type="button"
-                  className={styles.providerOption}
-                  disabled={modelBusy}
-                  data-selected={provider.active}
-                  onClick={() => {
-                    setSelectedProviderId(provider.providerId);
-                    setKeyEditorOpen(false);
-                    setApiKeyDraft("");
-                  }}
-                >
-                  <span>
-                    <strong>{provider.name}</strong>
-                    <small>{getProviderStatus(provider)}</small>
-                  </span>
-                  <ChevronRight size={14} />
-                </button>
-              ))
-            )}
+                </>
+              ) : (
+                providers.map((provider) => (
+                  <button
+                    key={provider.providerId}
+                    type="button"
+                    className={styles.providerOption}
+                    disabled={modelBusy}
+                    data-selected={provider.active}
+                    onClick={() => {
+                      setSelectedProviderId(provider.providerId);
+                      setKeyEditorOpen(false);
+                      setApiKeyDraft("");
+                    }}
+                  >
+                    <span>
+                      <strong>{provider.name}</strong>
+                      <small>{getProviderStatus(provider)}</small>
+                    </span>
+                    <ChevronRight size={14} />
+                  </button>
+                ))
+              )}
+            </div>
+            </div>
           </div>
-        ) : null}
+        </div>
       </nav>
 
       <div className={styles.history}>

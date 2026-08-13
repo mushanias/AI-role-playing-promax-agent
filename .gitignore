@@ -36,5 +36,9 @@ logs/
 data/conversations/*.json
 !data/conversations/.gitkeep
 
+# 本地不变事实
+data/fact_sets/*.json
+!data/fact_sets/.gitkeep
+
 # 运行时性能指标
 data/performance.csv

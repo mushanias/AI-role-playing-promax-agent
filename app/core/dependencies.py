@@ -7,6 +7,7 @@ from app.core.config import (
     CONTEXT_LOW_WATERMARK,
     CONTEXT_SAFETY_MARGIN,
     CONVERSATIONS_PATH,
+    FACT_SET_PATH,
     MAX_COMPRESSION_PASSES,
     PERFORMANCE_METRICS_PATH,
     RECENT_RAW_TOKEN_TARGET,
@@ -28,6 +29,9 @@ from app.conversations.memory.versioned_context_manager import (
     VersionedContextManager,
 )
 from app.conversations.versioned_chat_service import VersionedChatService
+from app.fact_sets.context_provider import FactSetContextProvider
+from app.fact_sets.repository import FactSetRepository
+from app.fact_sets.service import FactSetService
 from app.llm import llm_model
 from app.llm.client import LLMClient
 from app.performance.recorder import CsvPerformanceRecorder
@@ -37,6 +41,18 @@ from app.performance.recorder import CsvPerformanceRecorder
 def get_conversation_repository() -> ConversationRepository:
     """提供进程内共享锁的会话 JSON 仓库。"""
     return ConversationRepository(CONVERSATIONS_PATH)
+
+
+@lru_cache
+def get_fact_set_repository() -> FactSetRepository:
+    """提供单个本地不变事实 JSON 仓库。"""
+    return FactSetRepository(FACT_SET_PATH)
+
+
+@lru_cache
+def get_fact_set_service() -> FactSetService:
+    """提供不变事实的读取与整体替换用例。"""
+    return FactSetService(get_fact_set_repository())
 
 
 @lru_cache
@@ -86,6 +102,7 @@ def get_versioned_chat_service() -> VersionedChatService:
         context_planner=context_planner,
         compression_service=compression_service,
         max_compression_passes=MAX_COMPRESSION_PASSES,
+        prefix_provider=FactSetContextProvider(get_fact_set_service()),
     )
     return VersionedChatService(
         repository=repository,

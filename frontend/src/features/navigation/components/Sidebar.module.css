@@ -57,7 +57,13 @@
   cursor: pointer;
   font-size: 14px;
   text-align: left;
-  transition: background-color var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.actionButton:active:not(:disabled) {
+  transform: scale(0.985);
 }
 
 .actionButton:hover:not(:disabled),
@@ -98,6 +104,28 @@
   background: #3a9b68;
 }
 
+.panelDisclosure {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  opacity: 0;
+  transition:
+    grid-template-rows 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 160ms ease,
+    visibility 220ms;
+}
+
+.panelDisclosure[data-open="true"] {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  opacity: 1;
+}
+
+.panelDisclosureInner {
+  min-height: 0;
+  overflow: hidden;
+}
+
 .inlinePanel {
   max-height: min(62dvh, 520px);
   overflow-y: auto;
@@ -107,6 +135,20 @@
   border-radius: 12px;
   box-shadow: inset 0 0 0 1px rgb(0 0 0 / 5%);
   scrollbar-width: thin;
+  opacity: 0;
+  transform: translateY(-5px);
+  transition:
+    opacity 160ms ease,
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.panelDisclosure[data-open="true"] .inlinePanel {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.panelStage {
+  animation: panelStageEnter 170ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .modelOption,
@@ -123,6 +165,16 @@
   border-radius: 8px;
   cursor: pointer;
   text-align: left;
+  transition:
+    background-color var(--transition-fast),
+    transform var(--transition-fast);
+}
+
+.modelOption:active:not(:disabled),
+.providerOption:active:not(:disabled),
+.panelBack:active,
+.keyAction:active:not(:disabled) {
+  transform: scale(0.985);
 }
 
 .modelOption:hover,
@@ -173,6 +225,9 @@
   font-size: 12px;
   font-weight: 550;
   text-align: left;
+  transition:
+    background-color var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .panelBack:hover {
@@ -216,6 +271,9 @@
   cursor: pointer;
   font-size: 11px;
   font-weight: 450;
+  transition:
+    background-color var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .keyAction:hover:not(:disabled),
@@ -230,6 +288,7 @@
 
 .apiForm {
   padding-top: 2px;
+  animation: panelStageEnter 170ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .apiField {
@@ -345,8 +404,11 @@
 
 .historyItem {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px 28px;
   align-items: center;
+  column-gap: 1px;
+  padding-right: 4px;
   border-radius: 10px;
   transition: background-color var(--transition-fast);
 }
@@ -357,12 +419,13 @@
 }
 
 .historyMain {
+  width: 100%;
   min-width: 0;
-  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding: 8px 65px 8px 10px;
+  overflow: hidden;
+  padding: 8px 4px 8px 10px;
   color: var(--color-text-primary);
   background: transparent;
   border: 0;
@@ -371,6 +434,9 @@
 }
 
 .historyTitle {
+  width: 100%;
+  min-width: 0;
+  display: block;
   overflow: hidden;
   font-size: 13px;
   text-overflow: ellipsis;
@@ -384,18 +450,15 @@
 
 .pinButton,
 .deleteButton {
-  position: absolute;
+  position: static;
   width: 27px;
   height: 27px;
   opacity: 0;
-}
-
-.pinButton {
-  right: 33px;
-}
-
-.deleteButton {
-  right: 5px;
+  transition:
+    color var(--transition-fast),
+    background-color var(--transition-fast),
+    opacity var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .deleteButton:hover:not(:disabled) {
@@ -648,6 +711,42 @@
 @keyframes statusPulse {
   50% {
     opacity: 0.35;
+  }
+}
+
+@keyframes panelStageEnter {
+  from {
+    opacity: 0;
+    transform: translateX(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panelStage,
+  .apiForm {
+    animation: none;
+  }
+
+  .panelDisclosure,
+  .inlinePanel,
+  .panelStage,
+  .apiForm {
+    transition: none;
+  }
+
+  .actionButton,
+  .modelOption,
+  .providerOption,
+  .panelBack,
+  .keyAction,
+  .pinButton,
+  .deleteButton {
+    transition: none;
   }
 }
 
